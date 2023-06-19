@@ -1,0 +1,185 @@
+import re
+import string
+
+from nltk.corpus import stopwords
+from nltk.stem import PorterStemmer
+from nltk.tokenize import TweetTokenizer
+
+import numpy as np
+from scipy import linalg
+from collections import defaultdict
+
+
+def process_utt(utt):
+    """
+    Input:
+        utt: a string containing a utt
+    Output:
+        utts_clean: a list of words containing the processed utt
+    """
+    stemmer = PorterStemmer()
+    # stopwords_english = stopwords.words('english')
+    # remove stock market tickers like $GE
+    utt = re.sub(r"\$\w*", "", utt)
+    # remove old style utt text "RT"
+    utt = re.sub(r"^RT[\s]+", "", utt)
+    # remove hyperlinks
+    utt = re.sub(r"https?:\/\/.*[\r\n]*", "", utt)
+    # remove hashtags
+    # only removing the hash # sign from the word
+    utt = re.sub(r"#", "", utt)
+    # tokenize utts
+    tokenizer = TweetTokenizer(preserve_case=False, strip_handles=True, reduce_len=True)
+    utt_tokens = tokenizer.tokenize(utt)
+
+    utts_clean = []
+    for word in utt_tokens:
+        if word not in string.punctuation:  # remove punctuation
+            # utts_clean.append(word)
+            stem_word = stemmer.stem(word)  # stemming word
+            utts_clean.append(stem_word)
+
+    return utts_clean
+
+
+def test_lookup(func):
+    freqs = {("sad", 0): 4, ("happy", 1): 12, ("oppressed", 0): 7}
+    word = "happy"
+    label = 1
+    if func(freqs, word, label) == 12:
+        return "SUCCESS!!"
+    return "Failed Sanity Check!"
+
+
+def lookup(freqs, word, label):
+    """
+    Input:
+        freqs: a dictionary with the frequency of each pair (or tuple)
+        word: the word to look up
+        label: the label corresponding to the word
+    Output:
+        n: the number of times the word with its corresponding label appears.
+    """
+    n = 0  # freqs.get((word, label), 0)
+
+    pair = (word, label)
+    if pair in freqs:
+        n = freqs[pair]
+
+    return n
+
+
+def sigmoid(z):
+    # sigmoid function
+    return 1.0 / (1.0 + np.exp(-z))
+
+
+def get_idx(words, word2Ind):
+    idx = []
+    for word in words:
+        idx = idx + [word2Ind[word]]
+    return idx
+
+
+def pack_idx_with_frequency(context_words, word2Ind):
+    freq_dict = defaultdict(int)
+    for word in context_words:
+        freq_dict[word] += 1
+    idxs = get_idx(context_words, word2Ind)
+    packed = []
+    for i in range(len(idxs)):
+        idx = idxs[i]
+        freq = freq_dict[context_words[i]]
+        packed.append((idx, freq))
+    return packed
+
+
+def get_vectors(data, word2Ind, V, C):
+    i = C
+    while True:
+        y = np.zeros(V)
+        x = np.zeros(V)
+        center_word = data[i]
+        y[word2Ind[center_word]] = 1
+        context_words = data[(i - C) : i] + data[(i + 1) : (i + C + 1)]
+        num_ctx_words = len(context_words)
+        for idx, freq in pack_idx_with_frequency(context_words, word2Ind):
+            x[idx] = freq / num_ctx_words
+        yield x, y
+        i += 1
+        if i >= len(data):
+            print("i is being set to 0")
+            i = 0
+
+
+def get_batches(data, word2Ind, V, C, batch_size):
+    batch_x = []
+    batch_y = []
+    for x, y in get_vectors(data, word2Ind, V, C):
+        while len(batch_x) < batch_size:
+            batch_x.append(x)
+            batch_y.append(y)
+        else:
+            yield np.array(batch_x).T, np.array(batch_y).T
+            batch = []
+
+
+def compute_pca(data, n_components=2):
+    """
+    Input:
+        data: of dimension (m,n) where each row corresponds to a word vector
+        n_components: Number of components you want to keep.
+    Output:
+        X_reduced: data transformed in 2 dims/columns + regenerated original data
+    pass in: data as 2D NumPy array
+    """
+
+    m, n = data.shape
+
+    ### START CODE HERE ###
+    # mean center the data
+    data -= data.mean(axis=0)
+    # calculate the covariance matrix
+    R = np.cov(data, rowvar=False)
+    # calculate eigenvectors & eigenvalues of the covariance matrix
+    # use 'eigh' rather than 'eig' since R is symmetric,
+    # the performance gain is substantial
+    evals, evecs = linalg.eigh(R)
+    # sort eigenvalue in decreasing order
+    # this returns the corresponding indices of evals and evecs
+    idx = np.argsort(evals)[::-1]
+
+    evecs = evecs[:, idx]
+    # sort eigenvectors according to same index
+    evals = evals[idx]
+    # select the first n eigenvectors (n is desired dimension
+    # of rescaled data array, or dims_rescaled_data)
+    evecs = evecs[:, :n_components]
+    ### END CODE HERE ###
+    return np.dot(evecs.T, data.T).T
+
+
+def get_dict(data):
+    """
+    Input:
+        K: the number of negative samples
+        data: the data you want to pull from
+        indices: a list of word indices
+    Output:
+        word_dict: a dictionary with the weighted probabilities of each word
+        word2Ind: returns dictionary mapping the word to its index
+        Ind2Word: returns dictionary mapping the index to its word
+    """
+    #
+    #     words = nltk.word_tokenize(data)
+    words = sorted(list(set(data)))
+    n = len(words)
+    idx = 0
+    # return these correctly
+    word2Ind = {}
+    Ind2word = {}
+    for k in words:
+        word2Ind[k] = idx
+        Ind2word[idx] = k
+        idx += 1
+    return word2Ind, Ind2word
