@@ -1,0 +1,7 @@
+black==23.3.0
+datasets==2.13.0
+ray[default]==2.5.1
+ruff==0.0.273
+scipy==1.10.1
+torch==2.0.1
+transformers==4.30.2

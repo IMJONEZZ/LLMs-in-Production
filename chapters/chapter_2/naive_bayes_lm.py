@@ -6,6 +6,7 @@ my_corpus = PlaintextCorpusReader("./", ".*\.txt")
 
 sents = my_corpus.sents(fileids="hamlet.txt")
 
+
 def count_utts(result, utts, ys):
     """
     Input:
@@ -31,6 +32,7 @@ def count_utts(result, utts, ys):
 
     return result
 
+
 result = {}
 utts = [" ".join(sent) for sent in sents]
 ys = [sent.count("be") > 0 for sent in sents]
@@ -41,8 +43,8 @@ lookup(freqs, "be", True)
 for k, v in freqs.items():
     if "be" in k:
         print(f"{k}:{v}")
-        
-        
+
+
 def train_naive_bayes(freqs, train_x, train_y):
     """
     Input:
@@ -100,6 +102,7 @@ def train_naive_bayes(freqs, train_x, train_y):
 
     return logprior, loglikelihood
 
+
 def naive_bayes_predict(utt, logprior, loglikelihood):
     """
     Input:
@@ -125,6 +128,7 @@ def naive_bayes_predict(utt, logprior, loglikelihood):
             p += loglikelihood[word]
 
     return p
+
 
 def test_naive_bayes(test_x, test_y, logprior, loglikelihood):
     """
@@ -161,11 +165,12 @@ def test_naive_bayes(test_x, test_y, logprior, loglikelihood):
 
     return accuracy
 
+
 if __name__ == "__main__":
     logprior, loglikelihood = train_naive_bayes(freqs, utts, ys)
     print(logprior)
     print(len(loglikelihood))
-    
+
     my_utt = "To be or not to be, that is the question."
     p = naive_bayes_predict(my_utt, logprior, loglikelihood)
     print("The expected output is", p)

@@ -1,7 +1,6 @@
 import re
 import string
 
-from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 from nltk.tokenize import TweetTokenizer
 
@@ -121,7 +120,6 @@ def get_batches(data, word2Ind, V, C, batch_size):
             batch_y.append(y)
         else:
             yield np.array(batch_x).T, np.array(batch_y).T
-            batch = []
 
 
 def compute_pca(data, n_components=2):
@@ -173,7 +171,7 @@ def get_dict(data):
     #
     #     words = nltk.word_tokenize(data)
     words = sorted(list(set(data)))
-    n = len(words)
+    len(words)
     idx = 0
     # return these correctly
     word2Ind = {}

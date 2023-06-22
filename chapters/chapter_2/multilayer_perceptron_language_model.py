@@ -24,7 +24,7 @@ class MultiLayerPerceptron(nn.Module):
         self.module_list = nn.ModuleList()
         interim_input_size = input_size
         interim_output_size = hidden_size
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
         for _ in range(num_hidden_layers):
             self.module_list.append(nn.Linear(interim_input_size, interim_output_size))

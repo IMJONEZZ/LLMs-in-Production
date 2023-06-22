@@ -1,5 +1,5 @@
 from nltk.corpus.reader import PlaintextCorpusReader
-from nltk.util import pad_sequence, everygrams
+from nltk.util import everygrams
 from nltk.lm.preprocessing import pad_both_ends, flatten, padded_everygram_pipeline
 from nltk.lm import MLE
 
@@ -7,7 +7,7 @@ my_corpus = PlaintextCorpusReader("./", ".*\.txt")
 
 for sent in my_corpus.sents(fileids="hamlet.txt"):
     print(sent)
-    
+
 padded_trigrams = list(pad_both_ends(my_corpus.sents(fileids="hamlet.txt")[1104], n=2))
 list(everygrams(padded_trigrams, max_len=3))
 

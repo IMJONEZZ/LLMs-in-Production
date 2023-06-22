@@ -82,6 +82,7 @@ print(
 output_attention = np.hstack((z0h1, z1h2, z2h3, z3h4, z4h5, z5h6, z6h7, z7h8))
 print(output_attention)
 
+
 def DotProductAttention(query, key, value, mask, scale=True):
     """Dot product self-attention.
     Args:
@@ -126,6 +127,7 @@ def DotProductAttention(query, key, value, mask, scale=True):
     attention = np.matmul(dots, value)
 
     return attention
+
 
 def masked_dot_product_self_attention(q, k, v, scale=True):
     """Masked dot product self attention.

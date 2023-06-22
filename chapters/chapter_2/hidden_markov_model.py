@@ -1,6 +1,7 @@
-import nltk, re, random
+import re, random
 from nltk.tokenize import word_tokenize
 from collections import defaultdict, deque
+
 
 class MarkovChain:
     def __init__(self):
@@ -56,10 +57,11 @@ class MarkovChain:
             output.extend(list(context))
         return " ".join(output)
 
+
 if __name__ == "__main__":
     with open("hamlet.txt", "r", encoding="utf-8") as f:
         text = f.read()
     HMM = MarkovChain()
     HMM.add_document(text)
-    
+
     print(HMM.generate_text(max_length=25))
