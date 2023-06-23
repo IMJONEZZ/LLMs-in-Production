@@ -1,3 +1,4 @@
+import copy
 import torch.ao.quantization as q
 
 # deep copy the original model as quantization is done in place
