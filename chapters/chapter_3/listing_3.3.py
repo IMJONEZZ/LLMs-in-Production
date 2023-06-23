@@ -3,16 +3,19 @@ import time
 
 ray.init()  # Start Ray
 
+
 # Define a regular Python function
 def slow_function(x):
     time.sleep(1)
     return x
+
 
 # Turn the function into a Ray task
 @ray.remote
 def slow_function_ray(x):
     time.sleep(1)
     return x
+
 
 # Execute the slow function without Ray (takes 10 seconds)
 results = [slow_function(i) for i in range(1, 11)]

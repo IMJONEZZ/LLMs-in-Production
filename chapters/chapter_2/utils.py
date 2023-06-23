@@ -28,7 +28,9 @@ def process_utt(utt):
     # only removing the hash # sign from the word
     utt = re.sub(r"#", "", utt)
     # tokenize utts
-    tokenizer = TweetTokenizer(preserve_case=False, strip_handles=True, reduce_len=True)
+    tokenizer = TweetTokenizer(
+        preserve_case=False, strip_handles=True, reduce_len=True
+    )
     utt_tokens = tokenizer.tokenize(utt)
 
     utts_clean = []

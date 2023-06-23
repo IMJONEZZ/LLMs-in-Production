@@ -5,10 +5,17 @@ import torch
 
 class RNN(torch.nn.Module):
     def __init__(
-        self, input_dim, embedding_dim, hidden_dim, output_dim, embedding_weights
+        self,
+        input_dim,
+        embedding_dim,
+        hidden_dim,
+        output_dim,
+        embedding_weights,
     ):
         super().__init__()
-        self.embedding = torch.nn.Embedding.from_pretrained(embedding_weights)
+        self.embedding = torch.nn.Embedding.from_pretrained(
+            embedding_weights
+        )
         self.rnn = torch.nn.RNN(embedding_dim, hidden_dim)
         self.fc = torch.nn.Linear(hidden_dim, output_dim)
 
@@ -18,7 +25,9 @@ class RNN(torch.nn.Module):
             embedded, text_lengths
         )
         packed_output, hidden = self.rnn(packed_embedded)
-        output, output_lengths = torch.nn.utils.rnn.pad_packed_sequence(packed_output)
+        output, output_lengths = torch.nn.utils.rnn.pad_packed_sequence(
+            packed_output
+        )
         return self.fc(hidden.squeeze(0))
 
 
@@ -27,7 +36,9 @@ EMBEDDING_DIM = 100
 HIDDEN_DIM = 256
 OUTPUT_DIM = 1
 
-model = RNN(INPUT_DIM, EMBEDDING_DIM, HIDDEN_DIM, OUTPUT_DIM, embedding_weights)
+model = RNN(
+    INPUT_DIM, EMBEDDING_DIM, HIDDEN_DIM, OUTPUT_DIM, embedding_weights
+)
 
 optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
 criterion = torch.nn.BCEWithLogitsLoss()
@@ -47,7 +58,9 @@ class LSTM(torch.nn.Module):
         embedding_weights,
     ):
         super().__init__()
-        self.embedding = torch.nn.Embedding.from_pretrained(embedding_weights)
+        self.embedding = torch.nn.Embedding.from_pretrained(
+            embedding_weights
+        )
         self.rnn = torch.nn.LSTM(
             embedding_dim,
             hidden_dim,
@@ -64,7 +77,9 @@ class LSTM(torch.nn.Module):
             embedded, text_lengths
         )
         packed_output, (hidden, cell) = self.rnn(packed_embedded)
-        hidden = self.dropout(torch.cat((hidden[-2, :, :], hidden[-1, :, :]), dim=1))
+        hidden = self.dropout(
+            torch.cat((hidden[-2, :, :], hidden[-1, :, :]), dim=1)
+        )
         return self.fc(hidden.squeeze(0))
 
 
@@ -128,7 +143,9 @@ def evaluate(model, iterator, criterion):
 N_EPOCHS = 25
 
 for epoch in range(N_EPOCHS):
-    train_loss, train_acc = train(model, train_iterator, optimizer, criterion)
+    train_loss, train_acc = train(
+        model, train_iterator, optimizer, criterion
+    )
     valid_loss, valid_acc = evaluate(model, validate_iterator, criterion)
 
     print(

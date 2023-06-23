@@ -2,7 +2,9 @@ import numpy as np
 from scipy.special import softmax
 
 print("Step 1: Input : 3 inputs, d_model=4")
-x = np.array([[1.0, 0.0, 1.0, 0.0], [0.0, 2.0, 0.0, 2.0], [1.0, 1.0, 1.0, 1.0]])
+x = np.array(
+    [[1.0, 0.0, 1.0, 0.0], [0.0, 2.0, 0.0, 2.0], [1.0, 1.0, 1.0, 1.0]]
+)
 print("x:", x)
 
 print("Step 2: weights 3 dimensions x d_model=4")
@@ -55,7 +57,9 @@ print("Attention 2:", attention2)
 attention3 = attention_scores[0][2] * V[2]
 print("Attention 3:", attention3)
 
-print("Step 7: summed the results to create the first line of the output matrix")
+print(
+    "Step 7: summed the results to create the first line of the output matrix"
+)
 attention_input1 = attention1 + attention2 + attention3
 print(attention_input1)
 
@@ -65,7 +69,9 @@ print("Step 8: Step 1 to 7 for inputs 1 to 3")
 attention_head1 = np.random.random((3, 64))
 print(attention_head1)
 
-print("Step 9: We assume we have trained the 8 heads of the attention sub-layer")
+print(
+    "Step 9: We assume we have trained the 8 heads of the attention sub-layer"
+)
 z0h1 = np.random.random((3, 64))
 z1h2 = np.random.random((3, 64))
 z2h3 = np.random.random((3, 64))
@@ -79,7 +85,9 @@ print("shape of one head", z0h1.shape, "dimension of 8 heads", 64 * 8)
 print(
     "Step 10: Concatenation of heads 1 to 8 to obtain the original 8x64=512 output dimension of the model"
 )
-output_attention = np.hstack((z0h1, z1h2, z2h3, z3h4, z4h5, z5h6, z6h7, z7h8))
+output_attention = np.hstack(
+    (z0h1, z1h2, z2h3, z3h4, z4h5, z5h6, z6h7, z7h8)
+)
 print(output_attention)
 
 

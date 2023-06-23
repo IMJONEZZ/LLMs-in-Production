@@ -1,2 +1,5 @@
+[tool.black]
+line-length = 76
+
 [tool.ruff]
 line-length = 76  # note: should be 70 in sidebars and 55 with annotations

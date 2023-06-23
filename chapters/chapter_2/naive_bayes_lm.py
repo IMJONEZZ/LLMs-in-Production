@@ -156,9 +156,9 @@ def test_naive_bayes(test_x, test_y, logprior, loglikelihood):
         y_hats.append(y_hat_i)
 
     # error is the average of the absolute values of the differences between y_hats and test_y
-    error = sum([abs(y_hat - test) for y_hat, test in zip(y_hats, test_y)]) / len(
-        y_hats
-    )
+    error = sum(
+        [abs(y_hat - test) for y_hat, test in zip(y_hats, test_y)]
+    ) / len(y_hats)
 
     # Accuracy is 1 minus the error
     accuracy = 1 - error
