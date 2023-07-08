@@ -10,4 +10,5 @@ ruff==0.0.273
 scipy==1.10.1
 torch==2.0.1
 transformers==4.30.2
+weightwatcher==0.7.1.5
 whylogs==1.1.46
