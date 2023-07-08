@@ -1,8 +1,6 @@
 import nltk
-from nltk.tokenize import word_tokenize
 import numpy as np
-from collections import Counter
-from utils import sigmoid, get_batches, compute_pca, get_dict
+from utils import get_batches, compute_pca, get_dict
 import re
 from matplotlib import pyplot
 
@@ -25,6 +23,7 @@ print("Size of vocabulary:", V)
 print("Index of the word 'king':", word2Ind["king"])
 print("Word which has index 2743:", Ind2word[2743])
 
+
 def initialize_model(N, V, random_seed=1):
     """
     Inputs:
@@ -43,6 +42,7 @@ def initialize_model(N, V, random_seed=1):
 
     return W1, W2, b1, b2
 
+
 tmp_N = 4
 tmp_V = 10
 tmp_W1, tmp_W2, tmp_b1, tmp_b2 = initialize_model(tmp_N, tmp_V)
@@ -52,6 +52,7 @@ print(f"tmp_W1.shape: {tmp_W1.shape}")
 print(f"tmp_W2.shape: {tmp_W2.shape}")
 print(f"tmp_b1.shape: {tmp_b1.shape}")
 print(f"tmp_b2.shape: {tmp_b2.shape}")
+
 
 def softmax(z):
     """
@@ -63,9 +64,11 @@ def softmax(z):
     yhat = np.exp(z) / np.sum(np.exp(z), axis=0)
     return yhat
 
+
 tmp = np.array([[1, 2, 3], [1, 1, 1]])
 tmp_sm = softmax(tmp)
 print(tmp_sm)
+
 
 def forward_prop(x, W1, W2, b1, b2):
     """
@@ -79,6 +82,7 @@ def forward_prop(x, W1, W2, b1, b2):
     h = np.maximum(0, h)
     z = W2 @ h + b2
     return z, h
+
 
 tmp_N = 2
 tmp_V = 3
@@ -100,11 +104,15 @@ print(f"h has shape {tmp_h.shape}")
 print("h has values:")
 print(tmp_h)
 
+
 def compute_cost(y, yhat, batch_size):
-    logprobs = np.multiply(np.log(yhat), y) + np.multiply(np.log(1 - yhat), 1 - y)
+    logprobs = np.multiply(np.log(yhat), y) + np.multiply(
+        np.log(1 - yhat), 1 - y
+    )
     cost = -1 / batch_size * np.sum(logprobs)
     cost = np.squeeze(cost)
     return cost
+
 
 tmp_C = 2
 tmp_N = 50
@@ -112,7 +120,9 @@ tmp_batch_size = 4
 tmp_word2Ind, tmp_Ind2word = get_dict(data)
 tmp_V = len(word2Ind)
 
-tmp_x, tmp_y = next(get_batches(data, tmp_word2Ind, tmp_V, tmp_C, tmp_batch_size))
+tmp_x, tmp_y = next(
+    get_batches(data, tmp_word2Ind, tmp_V, tmp_C, tmp_batch_size)
+)
 
 print(f"tmp_x.shape {tmp_x.shape}")
 print(f"tmp_y.shape {tmp_y.shape}")
@@ -135,6 +145,7 @@ tmp_cost = compute_cost(tmp_y, tmp_yhat, tmp_batch_size)
 print("call compute_cost")
 print(f"tmp_cost {tmp_cost:.4f}")
 
+
 def back_prop(x, yhat, y, h, W1, W2, b1, b2, batch_size):
     """
     Inputs:
@@ -156,13 +167,16 @@ def back_prop(x, yhat, y, h, W1, W2, b1, b2, batch_size):
 
     return grad_W1, grad_W2, grad_b1, grad_b2
 
+
 tmp_C = 2
 tmp_N = 50
 tmp_batch_size = 4
 tmp_word2Ind, tmp_Ind2word = get_dict(data)
 tmp_V = len(word2Ind)
 
-tmp_x, tmp_y = next(get_batches(data, tmp_word2Ind, tmp_V, tmp_C, tmp_batch_size))
+tmp_x, tmp_y = next(
+    get_batches(data, tmp_word2Ind, tmp_V, tmp_C, tmp_batch_size)
+)
 
 print("get a batch of data")
 print(f"tmp_x.shape {tmp_x.shape}")
@@ -190,7 +204,15 @@ print(f"tmp_yhat.shape: {tmp_yhat.shape}")
 
 tmp_m = 2 * tmp_C
 tmp_grad_W1, tmp_grad_W2, tmp_grad_b1, tmp_grad_b2 = back_prop(
-    tmp_x, tmp_yhat, tmp_y, tmp_h, tmp_W1, tmp_W2, tmp_b1, tmp_b2, tmp_batch_size
+    tmp_x,
+    tmp_yhat,
+    tmp_y,
+    tmp_h,
+    tmp_W1,
+    tmp_W2,
+    tmp_b1,
+    tmp_b2,
+    tmp_batch_size,
 )
 
 print()
@@ -199,6 +221,7 @@ print(f"tmp_grad_W1.shape {tmp_grad_W1.shape}")
 print(f"tmp_grad_W2.shape {tmp_grad_W2.shape}")
 print(f"tmp_grad_b1.shape {tmp_grad_b1.shape}")
 print(f"tmp_grad_b2.shape {tmp_grad_b2.shape}")
+
 
 def gradient_descent(data, word2Ind, N, V, num_iters, alpha=0.03):
     """
@@ -239,6 +262,7 @@ def gradient_descent(data, word2Ind, N, V, num_iters, alpha=0.03):
 
     return W1, W2, b1, b2
 
+
 C = 2
 N = 50
 word2Ind, Ind2word = get_dict(data)
@@ -247,7 +271,17 @@ num_iters = 150
 print("Call gradient_descent")
 W1, W2, b1, b2 = gradient_descent(data, word2Ind, N, V, num_iters)
 
-words = ["king", "queen", "lord", "man", "woman", "prince", "ophelia", "rich", "happy"]
+words = [
+    "king",
+    "queen",
+    "lord",
+    "man",
+    "woman",
+    "prince",
+    "ophelia",
+    "rich",
+    "happy",
+]
 embs = (W1.T + W2) / 2.0
 idx = [word2Ind[word] for word in words]
 X = embs[idx, :]
