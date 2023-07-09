@@ -31,7 +31,7 @@ V = np.matmul(x, w_value)
 print("V:", V)
 
 print("Step 4: Scaled Attention Scores")
-k_d = 1  # Equation is normally the square root of the number of dimensions (3 in this case)
+k_d = 1  # This is normally the square root of the number of dimensions
 attention_scores = (Q @ K.transpose()) / k_d
 print(attention_scores)
 
@@ -58,20 +58,18 @@ attention3 = attention_scores[0][2] * V[2]
 print("Attention 3:", attention3)
 
 print(
-    "Step 7: summed the results to create the first line of the output matrix"
+    "Step 7: sum the results to create the first line of the output matrix"
 )
 attention_input1 = attention1 + attention2 + attention3
 print(attention_input1)
 
 print("Step 8: Step 1 to 7 for inputs 1 to 3")
-# This is assuming that we had actually gone through the whole process for all 3
+# This assumes that we actually went through the whole process for all 3
 # We'll just take a random matrix of the correct dimensions in lieu
 attention_head1 = np.random.random((3, 64))
 print(attention_head1)
 
-print(
-    "Step 9: We assume we have trained the 8 heads of the attention sub-layer"
-)
+print("Step 9: We assume we trained the 8 heads of the attention sub-layer")
 z0h1 = np.random.random((3, 64))
 z1h2 = np.random.random((3, 64))
 z2h3 = np.random.random((3, 64))
@@ -83,7 +81,7 @@ z7h8 = np.random.random((3, 64))
 print("shape of one head", z0h1.shape, "dimension of 8 heads", 64 * 8)
 
 print(
-    "Step 10: Concatenation of heads 1 to 8 to obtain the original 8x64=512 output dimension of the model"
+    "Step 10: Concatenate heads 1 to 8 to get the original 8x64=512 output dim"
 )
 output_attention = np.hstack(
     (z0h1, z1h2, z2h3, z3h4, z4h5, z5h6, z6h7, z7h8)
@@ -94,11 +92,11 @@ print(output_attention)
 def DotProductAttention(query, key, value, mask, scale=True):
     """Dot product self-attention.
     Args:
-        query (numpy.ndarray): array of query representations with shape (L_q by d)
-        key (numpy.ndarray): array of key representations with shape (L_k by d)
-        value (numpy.ndarray): array of value representations with shape (L_k by d) where L_v = L_k
-        mask (numpy.ndarray): attention-mask, gates attention with shape (L_q by L_k)
-        scale (bool): whether to scale the dot product of the query and transposed key
+        query: array of query representations with shape (L_q by d)
+        key: array of key representations with shape (L_k by d)
+        value: array of value representations with shape (L_k by d) where L_v = L_k
+        mask: attention-mask, gates attention with shape (L_q by L_k)
+        scale: whether to scale the dot product of the query and transposed key
 
     Returns:
         numpy.ndarray: Self-attention array for q, k, v arrays. (L_q by L_k)
@@ -108,7 +106,7 @@ def DotProductAttention(query, key, value, mask, scale=True):
         query.shape[-1] == key.shape[-1] == value.shape[-1]
     ), "Embedding dimensions of q, k, v aren't all the same"
 
-    # Save depth/dimension of the query embedding for scaling down the dot product
+    # Save dimension of the query embedding for scaling down the dot product
     if scale:
         depth = query.shape[-1]
     else:
@@ -122,16 +120,12 @@ def DotProductAttention(query, key, value, mask, scale=True):
         dots = np.where(mask, dots, np.full_like(dots, -1e9))
 
     # Softmax formula implementation
-    # Use scipy.special.logsumexp of masked_qkT to avoid underflow by division by large numbers
-    # Note: softmax = e^(dots - logaddexp(dots)) = E^dots / sumexp(dots)
     logsumexp = scipy.special.logsumexp(dots, axis=-1, keepdims=True)
 
     # Take exponential of dots minus logsumexp to get softmax
-    # Use np.exp()
     dots = np.exp(dots - logsumexp)
 
     # Multiply dots by value to get self-attention
-    # Use np.matmul()
     attention = np.matmul(dots, value)
 
     return attention
@@ -140,9 +134,9 @@ def DotProductAttention(query, key, value, mask, scale=True):
 def masked_dot_product_self_attention(q, k, v, scale=True):
     """Masked dot product self attention.
     Args:
-        q (numpy.ndarray): queries.
-        k (numpy.ndarray): keys.
-        v (numpy.ndarray): values.
+        q: queries.
+        k: keys.
+        v: values.
     Returns:
         numpy.ndarray: masked dot product self attention tensor.
     """
@@ -150,8 +144,7 @@ def masked_dot_product_self_attention(q, k, v, scale=True):
     # Size of the penultimate dimension of the query
     mask_size = q.shape[-2]
 
-    # Creates a matrix with ones below the diagonal and 0s above. It should have shape (1, mask_size, mask_size)
-    # Use np.tril() - Lower triangle of an array and np.ones()
+    # Creates ones below the diagonal and 0s above shape (1, mask_size, mask_size)
     mask = np.tril(np.ones((1, mask_size, mask_size), dtype=np.bool_), k=0)
 
     return DotProductAttention(q, k, v, mask, scale=scale)

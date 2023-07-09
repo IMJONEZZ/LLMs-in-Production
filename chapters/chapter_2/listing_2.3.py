@@ -1,4 +1,5 @@
-import re, random
+import re
+import random
 from nltk.tokenize import word_tokenize
 from collections import defaultdict, deque
 

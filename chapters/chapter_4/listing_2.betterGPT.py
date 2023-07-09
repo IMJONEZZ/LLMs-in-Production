@@ -8,10 +8,12 @@ from transformers import (
 )
 from datasets import load_dataset
 
+# Load and format the dataset
 dataset = load_dataset("text", data_files="./shakespeare.txt")
 dataset = dataset.filter(lambda sentence: len(sentence["text"]) > 1)
 print(dataset["train"][0])
 
+# Establish our GPT2 parameters (different from the paper and scratchGPT)
 config = GPT2Config(
     vocab_size=50261,
     n_positions=256,
@@ -19,6 +21,7 @@ config = GPT2Config(
     activation_function="gelu",
 )
 
+# Instantiate our tokenizer and our special tokens
 tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
 special_tokens_dict = {
     "bos_token": "<BOS>",
@@ -27,24 +30,30 @@ special_tokens_dict = {
     "mask_token": "<MASK>",
 }
 tokenizer.add_special_tokens(special_tokens_dict)
+
+# Instantiate our model from the config
 model = GPT2LMHeadModel.from_pretrained(
     "gpt2", config=config, ignore_mismatched_sizes=True
 )
 
 
+# Create a tokenize function
 def tokenize(batch):
     return tokenizer(
         str(batch), padding="max_length", truncation=True, max_length=256
     )
 
 
-enc_ds = dataset.map(tokenize, batched=False)
-print(f"Tokenized: {enc_ds['train'][0]}")
+# tokenize our whole dataset (so we never have to do it again)
+tokenized_dataset = dataset.map(tokenize, batched=False)
+print(f"Tokenized: {tokenized_dataset['train'][0]}")
 
+# Create a data collator to format the data for training
 data_collator = DataCollatorForLanguageModeling(
     tokenizer=tokenizer, mlm=True, mlm_probability=0.15
-)
+)  # Masked Language Modeling - adds <MASK> tokens for the model to guess the words
 
+# Establish training arguments
 train_args = TrainingArguments(
     output_dir="./models/betterGPT/",
     num_train_epochs=1,
@@ -54,18 +63,22 @@ train_args = TrainingArguments(
     report_to="none",
 )
 
+# Instantiate the Trainer
 trainer = Trainer(
     model=model,
     args=train_args,
     data_collator=data_collator,
-    train_dataset=enc_ds["train"],
+    train_dataset=tokenized_dataset["train"],
 )
 
+# Train and save the model
 trainer.train()
-trainer.save_model()
+trainer.save_model("./models/betterGPT")
 
+# Load the saved model
 model = GPT2LMHeadModel.from_pretrained("./models/betterGPT/")
 
+# Test the saved model
 input = "To be or not"
 tokenized_inputs = tokenizer(input, return_tensors="pt")
 out = model.generate(

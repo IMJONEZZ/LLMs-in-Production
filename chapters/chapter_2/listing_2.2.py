@@ -10,9 +10,9 @@ sents = my_corpus.sents(fileids="hamlet.txt")
 def count_utts(result, utts, ys):
     """
     Input:
-        result: a dictionary that will be used to map each pair to its frequency
+        result: a dictionary that is used to map each pair to its frequency
         utts: a list of utts
-        ys: a list corresponding to the sentiment of each utt (either 0 or 1)
+        ys: a list of the sentiment of each utt (either 0 or 1)
     Output:
         result: a dictionary mapping each pair to its frequency
     """
@@ -26,7 +26,7 @@ def count_utts(result, utts, ys):
             if pair in result:
                 result[pair] += 1
 
-            # else, if the key is new, add it to the dictionary and set the count to 1
+            # if the key is new, add it to the dict and set the count to 1
             else:
                 result[pair] = 1
 
@@ -67,21 +67,21 @@ def train_naive_bayes(freqs, train_x, train_y):
     for pair in freqs.keys():
         # if the label is positive (greater than zero)
         if pair[1] > 0:
-            # Increment the number of positive words by the count for this (word, label) pair
+            # Increment the number of positive words (word, label)
             N_pos += lookup(freqs, pair[0], True)
 
         # else, the label is negative
         else:
-            # increment the number of negative words by the count for this (word,label) pair
+            # increment the number of negative words (word,label)
             N_neg += lookup(freqs, pair[0], False)
 
     # Calculate D, the number of documents
     D = len(train_y)
 
-    # Calculate D_pos, the number of positive documents (*hint: use sum(<np_array>))
+    # Calculate the number of positive documents
     D_pos = sum(train_y)
 
-    # Calculate D_neg, the number of negative documents (*hint: compute using D and D_pos)
+    # Calculate the number of negative documents
     D_neg = D - D_pos
 
     # Calculate logprior
@@ -110,7 +110,7 @@ def naive_bayes_predict(utt, logprior, loglikelihood):
         logprior: a number
         loglikelihood: a dictionary of words mapping to numbers
     Output:
-        p: the sum of all the logliklihoods of each word in the utt (if found in the dictionary) + logprior (a number)
+        p: the sum of all the logliklihoods + logprior
     """
     # process the utt to get a list of words
     word_l = process_utt(utt)
@@ -155,7 +155,7 @@ def test_naive_bayes(test_x, test_y, logprior, loglikelihood):
         # append the predicted class to the list y_hats
         y_hats.append(y_hat_i)
 
-    # error is the average of the absolute values of the differences between y_hats and test_y
+    # error = avg of the abs vals of the diffs between y_hats and test_y
     error = sum(
         [abs(y_hat - test) for y_hat, test in zip(y_hats, test_y)]
     ) / len(y_hats)
