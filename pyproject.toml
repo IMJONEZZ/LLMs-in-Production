@@ -3,3 +3,6 @@ line-length = 76
 
 [tool.ruff]
 line-length = 76  # note: should be 70 in sidebars and 55 with annotations
+[tool.ruff.per-file-ignores]
+# 'chapters/chapter_2/listing_2.7.py' = ['F821']
+'chapters/chapter_3/listing_3.1.py' = ['F821']
