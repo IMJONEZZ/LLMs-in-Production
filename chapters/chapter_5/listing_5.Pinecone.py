@@ -111,3 +111,9 @@ if __name__ == "__main__":
     wiki_data_ingestion = WikiDataIngestion(index)
     wiki_data_ingestion.batch_upload()
     index.describe_index_stats()
+
+    # Make a query
+    query = "Who was Johannes Gutenberg?"
+    embeddings = wiki_data_ingestion.embedder.embed_documents(query)
+    results = index.query(embeddings, top_k=5, include_metadata=True)
+    print(results)
