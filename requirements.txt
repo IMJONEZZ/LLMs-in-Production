@@ -16,4 +16,4 @@ tiktoken==0.4.0
 torch==2.0.1
 transformers==4.30.2
 weightwatcher==0.7.1.5
-whylogs==1.1.46
+whylogs==1.1.45.dev6

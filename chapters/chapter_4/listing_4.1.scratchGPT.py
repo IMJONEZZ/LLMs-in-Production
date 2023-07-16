@@ -172,7 +172,7 @@ if __name__ == "__main__":
     dropout = 0.2
 
     # Dataset
-    with open("./shakespeare.txt", "r", encoding="utf-8") as f:
+    with open("./chapters/chapter_2/crimeandpunishment.txt", "r", encoding="utf-8") as f:
         text = f.read()
 
     # Character-based pseudo-tokenization
@@ -208,10 +208,10 @@ if __name__ == "__main__":
         optimizer.step()
 
     # Save the model
-    torch.save(model.state_dict(), "./models/scratchGPT/model.pt")
+    torch.save(model.state_dict(), "./chapters/chapter_4/models/scratchGPT/model.pt")
 
     # Load the saved model
-    loaded = GPT().load_state_dict("./models/scratchGPT/model.pt")
+    loaded = GPT().load_state_dict("./chapters/chapter_4/models/scratchGPT/model.pt")
 
     # Test the loaded moel
     context = torch.zeros((1, 1), dtype=torch.long, device=device)

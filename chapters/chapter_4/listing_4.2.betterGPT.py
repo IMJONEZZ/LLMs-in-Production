@@ -9,7 +9,7 @@ from transformers import (
 from datasets import load_dataset
 
 # Load and format the dataset
-dataset = load_dataset("text", data_files="./shakespeare.txt")
+dataset = load_dataset("text", data_files="./chapters/chapter_2/crimeandpunishment.txt")
 dataset = dataset.filter(lambda sentence: len(sentence["text"]) > 1)
 print(dataset["train"][0])
 
@@ -55,7 +55,7 @@ data_collator = DataCollatorForLanguageModeling(
 
 # Establish training arguments
 train_args = TrainingArguments(
-    output_dir="./models/betterGPT/",
+    output_dir="./chapters/chapter_4/models/betterGPT/",
     num_train_epochs=1,
     per_device_train_batch_size=8,
     save_steps=5000,
@@ -73,10 +73,11 @@ trainer = Trainer(
 
 # Train and save the model
 trainer.train()
-trainer.save_model("./models/betterGPT")
+trainer.save_model("./chapters/chapter_4/models/betterGPT/")
+tokenizer.save_pretrained()
 
 # Load the saved model
-model = GPT2LMHeadModel.from_pretrained("./models/betterGPT/")
+model = GPT2LMHeadModel.from_pretrained("./chapters/chapter_4/models/betterGPT/")
 
 # Test the saved model
 input = "To be or not"
