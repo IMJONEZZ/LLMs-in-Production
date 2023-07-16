@@ -9,7 +9,9 @@ from transformers import (
 from datasets import load_dataset
 
 # Load and format the dataset
-dataset = load_dataset("text", data_files="./chapters/chapter_2/crimeandpunishment.txt")
+dataset = load_dataset(
+    "text", data_files="./chapters/chapter_2/crimeandpunishment.txt"
+)
 dataset = dataset.filter(lambda sentence: len(sentence["text"]) > 1)
 print(dataset["train"][0])
 
@@ -77,7 +79,9 @@ trainer.save_model("./chapters/chapter_4/models/betterGPT/")
 tokenizer.save_pretrained()
 
 # Load the saved model
-model = GPT2LMHeadModel.from_pretrained("./chapters/chapter_4/models/betterGPT/")
+model = GPT2LMHeadModel.from_pretrained(
+    "./chapters/chapter_4/models/betterGPT/"
+)
 
 # Test the saved model
 input = "To be or not"

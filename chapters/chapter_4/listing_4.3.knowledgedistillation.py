@@ -88,7 +88,8 @@ if __name__ == "__main__":
     sample_tok = "Here's our sanity check."
 
     assert teacher_tokenizer(sample_tok) == student_tokenizer(
-        sample_tok), f"Tokenizers need to have the same output! {teacher_tokenizer(sample_tok)} != {student_tokenizer(sample_tok)}"
+        sample_tok
+    ), f"Tokenizers need to have the same output! {teacher_tokenizer(sample_tok)} != {student_tokenizer(sample_tok)}"
 
     del teacher_tokenizer
     del student_tokenizer

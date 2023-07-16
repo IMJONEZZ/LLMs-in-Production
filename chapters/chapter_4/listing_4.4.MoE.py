@@ -1,9 +1,18 @@
-from transformers import AutoTokenizer, SwitchTransformersForConditionalGeneration, SwitchTransformersConfig, TrainingArguments, Trainer, DataCollatorForLanguageModeling
+from transformers import (
+    AutoTokenizer,
+    SwitchTransformersForConditionalGeneration,
+    SwitchTransformersConfig,
+    TrainingArguments,
+    Trainer,
+    DataCollatorForLanguageModeling,
+)
 from datasets import load_dataset
 import torch
 
 # Load and format the dataset
-dataset = load_dataset("text", data_files="./chapters/chapter_2/crimeandpunishment.txt")
+dataset = load_dataset(
+    "text", data_files="./chapters/chapter_2/crimeandpunishment.txt"
+)
 dataset = dataset.filter(lambda sentence: len(sentence["text"]) > 1)
 print(f"Dataset 1: {dataset['train'][0]}")
 
@@ -12,12 +21,15 @@ tokenizer = AutoTokenizer.from_pretrained("google/switch-base-8")
 
 # Establish our SwitchTransformers config
 config = SwitchTransformersConfig(
-    decoder_start_token_id = tokenizer.pad_token_id
+    decoder_start_token_id=tokenizer.pad_token_id
 )
 
 # Instantiate our model from the config
 model = SwitchTransformersForConditionalGeneration.from_pretrained(
-    "google/switch-base-8", config=config, device_map="auto", torch_dtype=torch.float16
+    "google/switch-base-8",
+    config=config,
+    device_map="auto",
+    torch_dtype=torch.float16,
 )
 
 
@@ -62,13 +74,17 @@ trainer.save_model("./chapters/chapter_4/models/MoE/")
 tokenizer.save_pretrained("./chapters/chapter_4/models/MoE/")
 
 # Load the saved model
-model = SwitchTransformersForConditionalGeneration.from_pretrained("./chapters/chapter_4/models/MoE/", device_map="auto", torch_dtype=torch.float16)
+model = SwitchTransformersForConditionalGeneration.from_pretrained(
+    "./chapters/chapter_4/models/MoE/",
+    device_map="auto",
+    torch_dtype=torch.float16,
+)
 
 # Test the saved model
 input = "To be or not <extra_id_0> <extra_id_0>"
 tokenized_inputs = tokenizer(input, return_tensors="pt")
 out = model.generate(
-    input_ids=tokenized_inputs["input_ids"].to('cuda'),
+    input_ids=tokenized_inputs["input_ids"].to("cuda"),
     attention_mask=tokenized_inputs["attention_mask"],
     max_length=256,
     num_beams=5,

@@ -1,13 +1,26 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer, default_data_collator, get_linear_schedule_with_warmup
-from peft import get_peft_model, PromptTuningInit, PromptTuningConfig, TaskType
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    default_data_collator,
+    get_linear_schedule_with_warmup,
+)
+from peft import (
+    get_peft_model,
+    PromptTuningInit,
+    PromptTuningConfig,
+    TaskType,
+)
 import torch
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+
 def preprocess_function(examples):
     batch_size = len(examples[text_column])
-    inputs = [f"{text_column} : {x} Label : " for x in examples[text_column]]
+    inputs = [
+        f"{text_column} : {x} Label : " for x in examples[text_column]
+    ]
     targets = [str(x) for x in examples[label_column]]
     model_inputs = tokenizer(inputs)
     labels = tokenizer(targets)
@@ -16,8 +29,12 @@ def preprocess_function(examples):
         label_input_ids = labels["input_ids"][i] + [tokenizer.pad_token_id]
         # print(i, sample_input_ids, label_input_ids)
         model_inputs["input_ids"][i] = sample_input_ids + label_input_ids
-        labels["input_ids"][i] = [-100] * len(sample_input_ids) + label_input_ids
-        model_inputs["attention_mask"][i] = [1] * len(model_inputs["input_ids"][i])
+        labels["input_ids"][i] = [-100] * len(
+            sample_input_ids
+        ) + label_input_ids
+        model_inputs["attention_mask"][i] = [1] * len(
+            model_inputs["input_ids"][i]
+        )
     # print(model_inputs)
     for i in range(batch_size):
         sample_input_ids = model_inputs["input_ids"][i]
@@ -25,18 +42,25 @@ def preprocess_function(examples):
         model_inputs["input_ids"][i] = [tokenizer.pad_token_id] * (
             max_length - len(sample_input_ids)
         ) + sample_input_ids
-        model_inputs["attention_mask"][i] = [0] * (max_length - len(sample_input_ids)) + model_inputs[
-            "attention_mask"
-        ][i]
-        labels["input_ids"][i] = [-100] * (max_length - len(sample_input_ids)) + label_input_ids
-        model_inputs["input_ids"][i] = torch.tensor(model_inputs["input_ids"][i][:max_length])
-        model_inputs["attention_mask"][i] = torch.tensor(model_inputs["attention_mask"][i][:max_length])
-        labels["input_ids"][i] = torch.tensor(labels["input_ids"][i][:max_length])
+        model_inputs["attention_mask"][i] = [0] * (
+            max_length - len(sample_input_ids)
+        ) + model_inputs["attention_mask"][i]
+        labels["input_ids"][i] = [-100] * (
+            max_length - len(sample_input_ids)
+        ) + label_input_ids
+        model_inputs["input_ids"][i] = torch.tensor(
+            model_inputs["input_ids"][i][:max_length]
+        )
+        model_inputs["attention_mask"][i] = torch.tensor(
+            model_inputs["attention_mask"][i][:max_length]
+        )
+        labels["input_ids"][i] = torch.tensor(
+            labels["input_ids"][i][:max_length]
+        )
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
 
-    
 if __name__ == "__main__":
     device = "cuda"
     model_name_or_path = "bigscience/bloomz-560m"
@@ -63,7 +87,10 @@ if __name__ == "__main__":
     dataset = load_dataset("ought/raft", dataset_name)
     print(f"Dataset 1: {dataset['train'][0]}")
 
-    classes = [label.replace("_", " ") for label in dataset["train"].features["Label"].names]
+    classes = [
+        label.replace("_", " ")
+        for label in dataset["train"].features["Label"].names
+    ]
     dataset = dataset.map(
         lambda x: {"text_label": [classes[label] for label in x["Label"]]},
         batched=True,
@@ -74,9 +101,14 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = tokenizer.eos_token_id
-    target_max_length = max([len(tokenizer(class_label)["input_ids"]) for class_label in classes])
+    target_max_length = max(
+        [
+            len(tokenizer(class_label)["input_ids"])
+            for class_label in classes
+        ]
+    )
     print(f"Target Max Length: {target_max_length}")
-    
+
     processed_datasets = dataset.map(
         preprocess_function,
         batched=True,
@@ -89,11 +121,19 @@ if __name__ == "__main__":
     train_dataset = processed_datasets["train"]
     eval_dataset = processed_datasets["test"]
 
-
     train_dataloader = DataLoader(
-        train_dataset, shuffle=True, collate_fn=default_data_collator, batch_size=batch_size, pin_memory=True
+        train_dataset,
+        shuffle=True,
+        collate_fn=default_data_collator,
+        batch_size=batch_size,
+        pin_memory=True,
     )
-    eval_dataloader = DataLoader(eval_dataset, collate_fn=default_data_collator, batch_size=batch_size, pin_memory=True)
+    eval_dataloader = DataLoader(
+        eval_dataset,
+        collate_fn=default_data_collator,
+        batch_size=batch_size,
+        pin_memory=True,
+    )
 
     model = AutoModelForCausalLM.from_pretrained(model_name_or_path)
     model = get_peft_model(model, peft_config)
@@ -131,28 +171,40 @@ if __name__ == "__main__":
             loss = outputs.loss
             eval_loss += loss.detach().float()
             eval_preds.extend(
-                tokenizer.batch_decode(torch.argmax(outputs.logits, -1).detach().cpu().numpy(), skip_special_tokens=True)
+                tokenizer.batch_decode(
+                    torch.argmax(outputs.logits, -1).detach().cpu().numpy(),
+                    skip_special_tokens=True,
+                )
             )
 
         eval_epoch_loss = eval_loss / len(eval_dataloader)
         eval_ppl = torch.exp(eval_epoch_loss)
         train_epoch_loss = total_loss / len(train_dataloader)
         train_ppl = torch.exp(train_epoch_loss)
-        print(f"{epoch=}: {train_ppl=} {train_epoch_loss=} {eval_ppl=} {eval_epoch_loss=}")
+        print(
+            f"{epoch=}: {train_ppl=} {train_epoch_loss=} {eval_ppl=} {eval_epoch_loss=}"
+        )
 
-    #Saving
+    # Saving
     tokenizer.save_pretrained("./chapters/chapter_4/models/PromptTunedPEFT")
-    model.save_pretrained("./chapters/chapter_4/models/PromptTunedPEFT")    
-        
-    #Inference
+    model.save_pretrained("./chapters/chapter_4/models/PromptTunedPEFT")
+
+    # Inference
     with torch.no_grad():
         inputs = tokenizer(
-        f'{text_column} : {"@nationalgridus I have no water and the bill is current and paid. Can you do something about this?"} Label : ',
+            f'{text_column} : {"@nationalgridus I have no water and the bill is current and paid. Can you do something about this?"} Label : ',
             return_tensors="pt",
         )
-        
+
         inputs = {k: v.to(device) for k, v in inputs.items()}
         outputs = model.generate(
-            input_ids=inputs["input_ids"], attention_mask=inputs["attention_mask"], max_new_tokens=10, eos_token_id=3
+            input_ids=inputs["input_ids"],
+            attention_mask=inputs["attention_mask"],
+            max_new_tokens=10,
+            eos_token_id=3,
         )
-        print(tokenizer.batch_decode(outputs.detach().cpu().numpy(), skip_special_tokens=True))
+        print(
+            tokenizer.batch_decode(
+                outputs.detach().cpu().numpy(), skip_special_tokens=True
+            )
+        )
