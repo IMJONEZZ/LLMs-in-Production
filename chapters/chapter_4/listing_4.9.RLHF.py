@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
 from accelerate import Accelerator
@@ -10,16 +10,32 @@ import evaluate
 import numpy as np
 import torch
 import torch.nn as nn
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, set_seed, AutoModelForSequenceClassification, HfArgumentParser,PreTrainedTokenizerBase,Trainer,TrainerCallback,Adafactor,  pipeline
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    TrainingArguments,
+    set_seed,
+    AutoModelForSequenceClassification,
+    PreTrainedTokenizerBase,
+    Trainer,
+    pipeline,
+)
 from transformers.utils import PaddingStrategy
 
-from trl import SFTTrainer, AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer, set_seed
+from trl import (
+    SFTTrainer,
+    AutoModelForCausalLMWithValueHead,
+    PPOConfig,
+    PPOTrainer,
+    set_seed,
+)
 from trl.trainer import ConstantLengthDataset
 from trl.core import LengthSampler
 
+
 @dataclass
 class RewardDataCollatorWithPadding:
-    #Data Collator for Reward Modeling
+    # Data Collator for Reward Modeling
     tokenizer: PreTrainedTokenizerBase
     padding: Union[bool, str, PaddingStrategy] = True
     max_length: Optional[int] = None
@@ -65,24 +81,32 @@ class RewardDataCollatorWithPadding:
         }
         return batch
 
+
 class RewardTrainer(Trainer):
     # Define how to compute the reward loss for Reward Modeling.
     def compute_loss(self, model, inputs, return_outputs=False):
-        rewards_j = model(input_ids=inputs["input_ids_j"], attention_mask=inputs["attention_mask_j"])[0]
-        rewards_k = model(input_ids=inputs["input_ids_k"], attention_mask=inputs["attention_mask_k"])[0]
+        rewards_j = model(
+            input_ids=inputs["input_ids_j"],
+            attention_mask=inputs["attention_mask_j"],
+        )[0]
+        rewards_k = model(
+            input_ids=inputs["input_ids_k"],
+            attention_mask=inputs["attention_mask_k"],
+        )[0]
         loss = -nn.functional.logsigmoid(rewards_j - rewards_k).mean()
         if return_outputs:
             return loss, {"rewards_j": rewards_j, "rewards_k": rewards_k}
         return loss
-    
-    
+
 
 def chars_token_ratio(dataset, tokenizer, nb_examples=400):
     """
     Estimate the average number of characters per token in the Supervised FineTuning dataset.
     """
     total_characters, total_tokens = 0, 0
-    for _, example in tqdm(zip(range(nb_examples), iter(dataset)), total=nb_examples):
+    for _, example in tqdm(
+        zip(range(nb_examples), iter(dataset)), total=nb_examples
+    ):
         text = prepare_sample_text(example)
         total_characters += len(text)
         if tokenizer.is_fast:
@@ -115,7 +139,7 @@ def prepare_sample_text(example):
 
 
 def create_datasets(tokenizer):
-    #Supervised Finetuning Creation of Datasets
+    # Supervised Finetuning Creation of Datasets
     dataset = load_dataset(
         "lvwerra/stack-exchange-paired",
         data_dir="data/finetune",
@@ -124,15 +148,16 @@ def create_datasets(tokenizer):
         num_proc=None,
         streaming=True,
     )
-    
+
     print("Loading the dataset in streaming mode")
     valid_data = dataset.take(4000)
     train_data = dataset.skip(4000)
     train_data = train_data.shuffle(buffer_size=5000, seed=8855)
 
-
     chars_per_token = chars_token_ratio(train_data, tokenizer)
-    print(f"The character to token ratio of the dataset is: {chars_per_token:.2f}")
+    print(
+        f"The character to token ratio of the dataset is: {chars_per_token:.2f}"
+    )
 
     train_dataset = ConstantLengthDataset(
         tokenizer,
@@ -152,6 +177,7 @@ def create_datasets(tokenizer):
     )
     return train_dataset, valid_dataset
 
+
 def preprocess_function(examples):
     # Turn the Reward Modeling dataset into pairs of post + summaries, where text_j is the preferred question + answer and text_k is the other.
     # Then tokenize the Reward Modeling dataset.
@@ -161,25 +187,39 @@ def preprocess_function(examples):
         "input_ids_k": [],
         "attention_mask_k": [],
     }
-    for question, response_j, response_k in zip(examples["question"], examples["response_j"], examples["response_k"]):
-        tokenized_j = tokenizer("Question: " + question + "\n\nAnswer: " + response_j, truncation=True)
-        tokenized_k = tokenizer("Question: " + question + "\n\nAnswer: " + response_k, truncation=True)
+    for question, response_j, response_k in zip(
+        examples["question"], examples["response_j"], examples["response_k"]
+    ):
+        tokenized_j = tokenizer(
+            "Question: " + question + "\n\nAnswer: " + response_j,
+            truncation=True,
+        )
+        tokenized_k = tokenizer(
+            "Question: " + question + "\n\nAnswer: " + response_k,
+            truncation=True,
+        )
 
         new_examples["input_ids_j"].append(tokenized_j["input_ids"])
-        new_examples["attention_mask_j"].append(tokenized_j["attention_mask"])
+        new_examples["attention_mask_j"].append(
+            tokenized_j["attention_mask"]
+        )
         new_examples["input_ids_k"].append(tokenized_k["input_ids"])
-        new_examples["attention_mask_k"].append(tokenized_k["attention_mask"])
+        new_examples["attention_mask_k"].append(
+            tokenized_k["attention_mask"]
+        )
 
     return new_examples
 
+
 def compute_metrics(eval_pred):
-    #Computing eval metrics for Reward Modeling
+    # Computing eval metrics for Reward Modeling
     predictions, _ = eval_pred
     # Here, predictions is rewards_j and rewards_k.
     # We want to see how much of the time rewards_j > rewards_k.
     predictions = np.argmax(predictions, axis=0)
     labels = np.zeros(predictions.shape)
     return accuracy.compute(predictions=predictions, references=labels)
+
 
 def build_dataset(
     tokenizer,
@@ -205,7 +245,9 @@ def build_dataset(
             query = "Question: " + question + "\n\nAnswer: "
             tokenized_question = tokenizer(query, truncation=True)
             new_examples["query"].append(query)
-            new_examples["input_ids"].append(tokenized_question["input_ids"])
+            new_examples["input_ids"].append(
+                tokenized_question["input_ids"]
+            )
 
         return new_examples
 
@@ -220,8 +262,9 @@ def build_dataset(
     ds.set_format(type="torch")
     return ds
 
+
 def collator(data):
-    #Data Collator for Reinforcement Learning
+    # Data Collator for Reinforcement Learning
     return dict((key, [d[key] for d in data]) for key in data[0])
 
 
@@ -264,7 +307,9 @@ def run_training(train_data, val_data):
     )
 
     model = AutoModelForCausalLM.from_pretrained(
-        "meta-llama/Llama-2-7b-chat-hf", load_in_8bit=True, device_map={"": Accelerator().process_index}
+        "meta-llama/Llama-2-7b-chat-hf",
+        load_in_8bit=True,
+        device_map={"": Accelerator().process_index},
     )
 
     trainer = SFTTrainer(
@@ -282,16 +327,18 @@ def run_training(train_data, val_data):
     trainer.train()
 
     print("Saving last checkpoint of the Supervised FineTuning model")
-    trainer.model.save_pretrained("./chapters/chapter_4/models/RLHF/final_SFT_checkpoint/")
+    trainer.model.save_pretrained(
+        "./chapters/chapter_4/models/RLHF/final_SFT_checkpoint/"
+    )
 
-    
+
 def run_reward_modeling(train_data, val_data):
-    #Run the Reward modeling training
+    # Run the Reward modeling training
     model_name_split = "gpt2"
     output_name = (
         f"{model_name_split}_peft_stack-exchange-paired_rmts__100000_2e-5"
     )
-    
+
     training_args = TrainingArguments(
         output_dir=output_name,
         learning_rate=2e-5,
@@ -306,7 +353,7 @@ def run_reward_modeling(train_data, val_data):
         gradient_accumulation_steps=1,
         gradient_checkpointing=False,
         deepspeed=None,
-        local_rank=-1, #Used for Multi-GPU
+        local_rank=-1,  # Used for Multi-GPU
         remove_unused_columns=False,
         label_names=[],
         bf16=True,
@@ -315,18 +362,20 @@ def run_reward_modeling(train_data, val_data):
         optim="adamw_hf",
         lr_scheduler_type="linear",
     )
-    
-    #Set up Reward Modeling Tokenizer
+
+    # Set up Reward Modeling Tokenizer
     tokenizer_name = "gpt2"
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, use_auth_token=True)
+    tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer_name, use_auth_token=True
+    )
     # Need to do this for gpt2, because it doesn't have an official pad token.
     tokenizer.pad_token = tokenizer.eos_token
     model.config.pad_token_id = tokenizer.eos_token_id
     model.config.use_cache = True
     num_proc = 24  # Can adjust to be higher if you have more processors.
     original_columns = train_data.column_names
-    
-    #Parameter Efficient FineTuning config
+
+    # Parameter Efficient FineTuning config
     peft_config = LoraConfig(
         task_type=TaskType.SEQ_CLS,
         inference_mode=False,
@@ -334,8 +383,8 @@ def run_reward_modeling(train_data, val_data):
         lora_alpha=32,
         lora_dropout=0.1,
     )
-    
-    #Set up Reward Modeling model
+
+    # Set up Reward Modeling model
     model = AutoModelForSequenceClassification.from_pretrained(
         "gpt2", num_labels=1, torch_dtype=torch.bfloat16
     )
@@ -350,9 +399,10 @@ def run_reward_modeling(train_data, val_data):
         remove_columns=original_columns,
     )
     train_data = train_data.filter(
-        lambda x: len(x["input_ids_j"]) <= 512 and len(x["input_ids_k"]) <= 512
+        lambda x: len(x["input_ids_j"]) <= 512
+        and len(x["input_ids_k"]) <= 512
     )
-    
+
     # preprocess the eval dataset
     val_data = val_data.map(
         preprocess_function,
@@ -361,26 +411,32 @@ def run_reward_modeling(train_data, val_data):
         remove_columns=original_columns,
     )
     val_data = val_data.filter(
-        lambda x: len(x["input_ids_j"]) <= 512 and len(x["input_ids_k"]) <= 512
+        lambda x: len(x["input_ids_j"]) <= 512
+        and len(x["input_ids_k"]) <= 512
     )
-    
-    accuracy = evaluate.load("accuracy")
-    
+
+    evaluate.load("accuracy")
+
     trainer = RewardTrainer(
         model=model,
         args=training_args,
         train_dataset=train_data,
         eval_dataset=val_data,
         compute_metrics=compute_metrics,
-        data_collator=RewardDataCollatorWithPadding(tokenizer=tokenizer, max_length=512),
+        data_collator=RewardDataCollatorWithPadding(
+            tokenizer=tokenizer, max_length=512
+        ),
     )
     trainer.train()
 
     print("Saving last checkpoint of the Reward Modeling model")
-    model.save_pretrained(f"./chapters/chapter_4/models/RLHF/{output_name}/")
-    
+    model.save_pretrained(
+        f"./chapters/chapter_4/models/RLHF/{output_name}/"
+    )
+
+
 def run_RL():
-    #Run Reinforcement Learning once the SFT and Reward training are done
+    # Run Reinforcement Learning once the SFT and Reward training are done
     config = PPOConfig(
         steps=20000,
         model_name="./chapters/chapter_4/models/RLHF/final_SFT_checkpoint/",
@@ -397,16 +453,18 @@ def run_RL():
         init_kl_coef=0.2,
         adap_kl_ctrl=True,
     )
-    
-    tokenizer = AutoTokenizer.from_pretrained("./chapters/chapter_4/models/RLHF/final_SFT_checkpoint/")
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        "./chapters/chapter_4/models/RLHF/final_SFT_checkpoint/"
+    )
     # GPT-2 tokenizer has a pad token, but it is not eos_token by default. We need to set it to eos_token.
     # only for this model.
 
     if getattr(tokenizer, "pad_token", None) is None:
         tokenizer.pad_token = tokenizer.eos_token
-        
+
     dataset = build_dataset(tokenizer)
-    
+
     # Now let's build the model, the reference model, and the tokenizer.
     current_device = Accelerator().local_process_index
 
@@ -439,9 +497,10 @@ def run_RL():
     # We then build the sentiment analysis pipeline, passing the model name and the
     # sentiment analysis pipeline arguments. Let's also make sure to set the device
     # to the same device as the PPOTrainer.
-    device = ppo_trainer.accelerator.device
     if ppo_trainer.accelerator.num_processes == 1:
-        device = 0 if torch.cuda.is_available() else "cpu"  # to avoid a ` pipeline` bug
+        (
+            0 if torch.cuda.is_available() else "cpu"
+        )  # to avoid a ` pipeline` bug
     sentiment_pipe = pipeline(
         "sentiment-analysis",
         model=reward_model_path,
@@ -464,7 +523,9 @@ def run_RL():
     }
     output_min_length = 32
     output_max_length = 128
-    output_length_sampler = LengthSampler(output_min_length, output_max_length)
+    output_length_sampler = LengthSampler(
+        output_min_length, output_max_length
+    )
 
     for epoch, batch in tqdm(enumerate(ppo_trainer.dataloader)):
         if epoch >= config.total_ppo_epochs:
@@ -478,52 +539,67 @@ def run_RL():
             length_sampler=output_length_sampler,
             **generation_kwargs,
         )
-        batch["response"] = tokenizer.batch_decode(response_tensors, skip_special_tokens=True)
+        batch["response"] = tokenizer.batch_decode(
+            response_tensors, skip_special_tokens=True
+        )
 
         # Compute sentiment score
         texts = [q + r for q, r in zip(batch["query"], batch["response"])]
         pipe_outputs = sentiment_pipe(texts, **sent_kwargs)
-        rewards = [torch.tensor(output[0]["score"] - 0.0) for output in pipe_outputs]
+        rewards = [
+            torch.tensor(output[0]["score"] - 0.0)
+            for output in pipe_outputs
+        ]
 
         # Run PPO step
-        stats = ppo_trainer.step(question_tensors, response_tensors, rewards)
+        stats = ppo_trainer.step(
+            question_tensors, response_tensors, rewards
+        )
         ppo_trainer.log_stats(stats, batch, rewards)
 
-        if epoch % 100  == 0:
-            ppo_trainer.save_pretrained("./chapters/chapter_4/models/RLHF/RLedHFed/" + f"step_{epoch}")
+        if epoch % 100 == 0:
+            ppo_trainer.save_pretrained(
+                "./chapters/chapter_4/models/RLHF/RLedHFed/"
+                + f"step_{epoch}"
+            )
+
 
 def main():
-    #Supervised FineTuning
-    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-chat-hf")
+    # Supervised FineTuning
+    tokenizer = AutoTokenizer.from_pretrained(
+        "meta-llama/Llama-2-7b-chat-hf"
+    )
     train_dataset, eval_dataset = create_datasets(tokenizer)
     run_training(train_dataset, eval_dataset)
-    
+
     del train_dataset, eval_dataset, model, tokenizer
-    
-    #Reward Model Training
-    train_dataset = load_dataset("lvwerra/stack-exchange-paired", data_dir="data/reward", split="train")
+
+    # Reward Model Training
+    train_dataset = load_dataset(
+        "lvwerra/stack-exchange-paired",
+        data_dir="data/reward",
+        split="train",
+    )
     train_dataset = train_dataset.select(range(100000))
-    eval_dataset = load_dataset("lvwerra/stack-exchange-paired", data_dir="data/evaluation", split="train")
+    eval_dataset = load_dataset(
+        "lvwerra/stack-exchange-paired",
+        data_dir="data/evaluation",
+        split="train",
+    )
     eval_dataset = eval_dataset.select(range(50000))
-    
+
     run_reward_modeling(train_dataset, eval_dataset)
-    
+
     del train_dataset, eval_dataset, model, tokenizer
-    
-    #Reinforcement Learning Training
+
+    # Reinforcement Learning Training
     tqdm.pandas()
-    reward_model_path = "./chapters/chapter_4/models/RLHF/gpt2_peft_stack-exchange-paired_rmts__100000_2e-5/"
-    
+
     # We then define the arguments to pass to the sentiment analysis pipeline.
     # We set `return_all_scores` to True to get the sentiment score for each token.
-    sent_kwargs = {
-        "return_all_scores": True,
-        "function_to_apply": "none",
-        "batch_size": 16,
-        "truncation": True,
-    }
 
     run_RL()
+
 
 if __name__ == "__main__":
     set_seed(8855)

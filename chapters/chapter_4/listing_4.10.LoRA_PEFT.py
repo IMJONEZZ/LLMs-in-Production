@@ -6,7 +6,13 @@ from transformers import (
     TrainingArguments,
     Trainer,
 )
-from peft import get_peft_config, PeftModel, PeftConfig, get_peft_model, LoraConfig, TaskType
+from peft import (
+    PeftModel,
+    PeftConfig,
+    get_peft_model,
+    LoraConfig,
+    TaskType,
+)
 import evaluate
 import torch
 import numpy as np
@@ -48,21 +54,29 @@ def compute_metrics(p):
         for prediction, label in zip(predictions, labels)
     ]
 
-    results = seqeval.compute(predictions=true_predictions, references=true_labels)
+    results = seqeval.compute(
+        predictions=true_predictions, references=true_labels
+    )
     return {
         "precision": results["overall_precision"],
         "recall": results["overall_recall"],
         "f1": results["overall_f1"],
         "accuracy": results["overall_accuracy"],
     }
-    
-tokenizer = AutoTokenizer.from_pretrained(model_checkpoint, add_prefix_space=True)
+
+
+tokenizer = AutoTokenizer.from_pretrained(
+    model_checkpoint, add_prefix_space=True
+)
+
 
 def tokenize_and_align_labels(examples):
-    tokenized_inputs = tokenizer(examples["tokens"], truncation=True, is_split_into_words=True)
+    tokenized_inputs = tokenizer(
+        examples["tokens"], truncation=True, is_split_into_words=True
+    )
 
     labels = []
-    for i, label in enumerate(examples[f"tags"]):
+    for i, label in enumerate(examples["tags"]):
         word_ids = tokenized_inputs.word_ids(batch_index=i)
         previous_word_idx = None
         label_ids = []
@@ -78,6 +92,7 @@ def tokenize_and_align_labels(examples):
 
     tokenized_inputs["labels"] = labels
     return tokenized_inputs
+
 
 tokenized_bionlp = bionlp.map(tokenize_and_align_labels, batched=True)
 
@@ -115,7 +130,12 @@ model = AutoModelForTokenClassification.from_pretrained(
 )
 
 peft_config = LoraConfig(
-    task_type=TaskType.TOKEN_CLS, inference_mode=False, r=16, lora_alpha=16, lora_dropout=0.1, bias="all"
+    task_type=TaskType.TOKEN_CLS,
+    inference_mode=False,
+    r=16,
+    lora_alpha=16,
+    lora_dropout=0.1,
+    bias="all",
 )
 
 model = get_peft_model(model, peft_config)
@@ -148,7 +168,10 @@ trainer.train()
 peft_model_id = "stevhliu/roberta-large-lora-token-classification"
 config = PeftConfig.from_pretrained("./chapters/chapter_4/models/LoRAPEFT")
 inference_model = AutoModelForTokenClassification.from_pretrained(
-    config.base_model_name_or_path, num_labels=11, id2label=id2label, label2id=label2id
+    config.base_model_name_or_path,
+    num_labels=11,
+    id2label=id2label,
+    label2id=label2id,
 )
 tokenizer = AutoTokenizer.from_pretrained(config.base_model_name_or_path)
 model = PeftModel.from_pretrained(inference_model, peft_model_id)
