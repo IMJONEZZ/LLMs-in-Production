@@ -1,6 +1,8 @@
 black==23.3.0
 datasets==2.13.0
 evaluate==0.4.0
+# feast==0.31.1 # protobuf conflict
+ipykernel==6.15.0
 langchain==0.0.234
 langkit[all]==0.0.1
 mlserver==1.3.4
@@ -12,6 +14,7 @@ ray[default]==2.5.1
 rouge-score==0.1.2
 ruff==0.0.273
 scipy==1.10.1
+sentence-transformers==2.2.2
 tiktoken==0.4.0
 torch==2.0.1
 transformers==4.30.2
