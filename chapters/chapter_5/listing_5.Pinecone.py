@@ -33,21 +33,9 @@ class WikiDataIngestion:
         self.wikidata = wikidata or load_dataset(
             "wikipedia", "20220301.simple", split="train[:10000]"
         )
-        self.embedder = embedder
-        if not (embedder and OPENAI_API_KEY):
-            embedder = SentenceTransformer(
-                "sangmini/msmarco-cotmae-MiniLM-L12_en-ko-ja"
-            )
-            embedder.embed_documents = (
-                lambda *args, **kwargs: embedder.encode(
-                    *args, **kwargs
-                ).tolist()
-            )
-        elif not embedder:
-            embedder = OpenAIEmbeddings(
-                model="text-embedding-ada-002",
-                openai_api_key=OPENAI_API_KEY,
-            )
+        self.embedder = embedder or OpenAIEmbeddings(
+            model="text-embedding-ada-002", openai_api_key=OPENAI_API_KEY
+        )
         self.tokenizer = tokenizer or tiktoken.get_encoding("cl100k_base")
         self.text_splitter = (
             text_splitter
@@ -109,7 +97,6 @@ if __name__ == "__main__":
 
     # Create index if it doesn't exist
     if index_name not in pinecone.list_indexes():
-        # we create a new index
         pinecone.create_index(
             name=index_name,
             metric="cosine",
@@ -125,7 +112,7 @@ if __name__ == "__main__":
     if not OPENAI_API_KEY:
         embedder = SentenceTransformer(
             "sangmini/msmarco-cotmae-MiniLM-L12_en-ko-ja"
-        )  # Also has 1536 dim
+        )  # Also 1536 dim
         embedder.embed_documents = lambda *args, **kwargs: embedder.encode(
             *args, **kwargs
         ).tolist()

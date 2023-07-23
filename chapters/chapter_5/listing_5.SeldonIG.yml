@@ -1,34 +1,39 @@
 apiVersion: machinelearning.seldon.io/v1alpha2
 kind: SeldonDeployment
 metadata:
-  name: seldon-model
+  name: example-seldon-inference-graph
 spec:
-  name: test-deployment
+  name: example-deployment
   predictors:
   - componentSpecs:
     - spec:
         containers:
-        - name: step_one
-          image: seldonio/step_one:1.0
-        - name: step_two
-          image: seldonio/step_two:1.0
-        - name: step_three
-          image: seldonio/step_three:1.0
+        - name: encoder
+          image: encoder_image:latest
+        - name: LLM
+          image: llm_image:latest
+        - name: classifier
+          image: classifier_image:latest
+        - name: combiner
+          image: combiner_image:latest
     graph:
-      name: step_one
+      name: encoder
+      type: MODEL
       endpoint:
         type: REST
-      type: MODEL
       children:
-          name: step_two
-          endpoint:
-            type: REST
-          type: MODEL
+        - name: combiner
+          type: COMBINER
           children:
-              name: step_three
+            - name: LLM
+              type: MODEL
               endpoint:
                 type: REST
+              children: []
+            - name: classifier
               type: MODEL
+              endpoint:
+                type: REST
               children: []
     name: example
     replicas: 1
