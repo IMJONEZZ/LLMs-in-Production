@@ -6,8 +6,6 @@ from sentence_transformers import SentenceTransformer
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
-path = "./data/qa.parquet"
-
 
 def save_qa_to_parquet(path):
     # Load SQuAD dataset
@@ -29,4 +27,6 @@ def save_qa_to_parquet(path):
     qa.to_parquet(path)
 
 
-save_qa_to_parquet(path)
+if __name__ == "__main__":
+    path = "./data/qa.parquet"
+    save_qa_to_parquet(path)
