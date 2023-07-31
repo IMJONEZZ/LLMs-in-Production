@@ -27,7 +27,6 @@ from trl import (
     AutoModelForCausalLMWithValueHead,
     PPOConfig,
     PPOTrainer,
-    set_seed,
 )
 from trl.trainer import ConstantLengthDataset
 from trl.core import LengthSampler
@@ -178,39 +177,6 @@ def create_datasets(tokenizer):
     return train_dataset, valid_dataset
 
 
-def preprocess_function(examples):
-    # Turn the Reward Modeling dataset into pairs of post + summaries, where text_j is the preferred question + answer and text_k is the other.
-    # Then tokenize the Reward Modeling dataset.
-    new_examples = {
-        "input_ids_j": [],
-        "attention_mask_j": [],
-        "input_ids_k": [],
-        "attention_mask_k": [],
-    }
-    for question, response_j, response_k in zip(
-        examples["question"], examples["response_j"], examples["response_k"]
-    ):
-        tokenized_j = tokenizer(
-            "Question: " + question + "\n\nAnswer: " + response_j,
-            truncation=True,
-        )
-        tokenized_k = tokenizer(
-            "Question: " + question + "\n\nAnswer: " + response_k,
-            truncation=True,
-        )
-
-        new_examples["input_ids_j"].append(tokenized_j["input_ids"])
-        new_examples["attention_mask_j"].append(
-            tokenized_j["attention_mask"]
-        )
-        new_examples["input_ids_k"].append(tokenized_k["input_ids"])
-        new_examples["attention_mask_k"].append(
-            tokenized_k["attention_mask"]
-        )
-
-    return new_examples
-
-
 def compute_metrics(eval_pred):
     # Computing eval metrics for Reward Modeling
     predictions, _ = eval_pred
@@ -218,6 +184,7 @@ def compute_metrics(eval_pred):
     # We want to see how much of the time rewards_j > rewards_k.
     predictions = np.argmax(predictions, axis=0)
     labels = np.zeros(predictions.shape)
+    accuracy = evaluate.load("accuracy")
     return accuracy.compute(predictions=predictions, references=labels)
 
 
@@ -340,7 +307,7 @@ def run_reward_modeling(train_data, val_data):
     )
 
     training_args = TrainingArguments(
-        output_dir=output_name,
+        output_dir=f"./chapters/chapter_4/models/{output_name}/",
         learning_rate=2e-5,
         per_device_train_batch_size=4,
         per_device_eval_batch_size=1,
@@ -362,6 +329,22 @@ def run_reward_modeling(train_data, val_data):
         optim="adamw_hf",
         lr_scheduler_type="linear",
     )
+    
+    # Parameter Efficient FineTuning config
+    peft_config = LoraConfig(
+        task_type=TaskType.SEQ_CLS,
+        inference_mode=False,
+        r=8,
+        lora_alpha=32,
+        lora_dropout=0.1,
+    )
+    
+    # Set up Reward Modeling model
+    model = AutoModelForSequenceClassification.from_pretrained(
+        "gpt2", num_labels=1, torch_dtype=torch.bfloat16
+    )
+    model = get_peft_model(model, peft_config)
+    model.print_trainable_parameters()
 
     # Set up Reward Modeling Tokenizer
     tokenizer_name = "gpt2"
@@ -375,21 +358,37 @@ def run_reward_modeling(train_data, val_data):
     num_proc = 24  # Can adjust to be higher if you have more processors.
     original_columns = train_data.column_names
 
-    # Parameter Efficient FineTuning config
-    peft_config = LoraConfig(
-        task_type=TaskType.SEQ_CLS,
-        inference_mode=False,
-        r=8,
-        lora_alpha=32,
-        lora_dropout=0.1,
-    )
+    def preprocess_function(examples):
+        # Turn the Reward Modeling dataset into pairs of post + summaries, where text_j is the preferred question + answer and text_k is the other.
+        # Then tokenize the Reward Modeling dataset.
+        new_examples = {
+            "input_ids_j": [],
+            "attention_mask_j": [],
+            "input_ids_k": [],
+            "attention_mask_k": [],
+        }
+        for question, response_j, response_k in zip(
+            examples["question"], examples["response_j"], examples["response_k"]
+        ):
+            tokenized_j = tokenizer(
+                "Question: " + question + "\n\nAnswer: " + response_j,
+                truncation=True,
+            )
+            tokenized_k = tokenizer(
+                "Question: " + question + "\n\nAnswer: " + response_k,
+                truncation=True,
+            )
 
-    # Set up Reward Modeling model
-    model = AutoModelForSequenceClassification.from_pretrained(
-        "gpt2", num_labels=1, torch_dtype=torch.bfloat16
-    )
-    model = get_peft_model(model, peft_config)
-    model.print_trainable_parameters()
+            new_examples["input_ids_j"].append(tokenized_j["input_ids"])
+            new_examples["attention_mask_j"].append(
+                tokenized_j["attention_mask"]
+            )
+            new_examples["input_ids_k"].append(tokenized_k["input_ids"])
+            new_examples["attention_mask_k"].append(
+                tokenized_k["attention_mask"]
+            )
+
+        return new_examples
 
     # preprocess the Reward Modeling dataset and filter out QAs that are longer than 512
     train_data = train_data.map(
@@ -415,7 +414,6 @@ def run_reward_modeling(train_data, val_data):
         and len(x["input_ids_k"]) <= 512
     )
 
-    evaluate.load("accuracy")
 
     trainer = RewardTrainer(
         model=model,
@@ -441,7 +439,6 @@ def run_RL():
         steps=20000,
         model_name="./chapters/chapter_4/models/RLHF/final_SFT_checkpoint/",
         learning_rate=1.4e-5,
-        log_with="none",
         batch_size=8,
         mini_batch_size=1,
         gradient_accumulation_steps=8,
@@ -455,7 +452,7 @@ def run_RL():
     )
 
     tokenizer = AutoTokenizer.from_pretrained(
-        "./chapters/chapter_4/models/RLHF/final_SFT_checkpoint/"
+        "meta-llama/Llama-2-7b-chat-hf"
     )
     # GPT-2 tokenizer has a pad token, but it is not eos_token by default. We need to set it to eos_token.
     # only for this model.
@@ -501,12 +498,16 @@ def run_RL():
         (
             0 if torch.cuda.is_available() else "cpu"
         )  # to avoid a ` pipeline` bug
+    reward_tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    reward_tokenizer.pad_token = reward_tokenizer.eos_token
+    reward_model = AutoModelForSequenceClassification.from_pretrained("./chapters/chapter_4/models/RLHF/gpt2_peft_stack-exchange-paired_rmts__100000_2e-5/")
+    reward_model.config.pad_token_id = reward_tokenizer.eos_token_id
     sentiment_pipe = pipeline(
         "sentiment-analysis",
-        model=reward_model_path,
+        model=reward_model,
         device_map={"": current_device},
         model_kwargs={"load_in_8bit": True},
-        tokenizer=tokenizer,
+        tokenizer=reward_tokenizer,
         return_token_type_ids=False,
     )
 
@@ -543,6 +544,13 @@ def run_RL():
             response_tensors, skip_special_tokens=True
         )
 
+        sent_kwargs = {
+            "return_all_scores": True,
+            "function_to_apply": "none",
+            "batch_size": 16,
+            "truncation": True,
+        }
+
         # Compute sentiment score
         texts = [q + r for q, r in zip(batch["query"], batch["response"])]
         pipe_outputs = sentiment_pipe(texts, **sent_kwargs)
@@ -566,31 +574,31 @@ def run_RL():
 
 def main():
     # Supervised FineTuning
-    tokenizer = AutoTokenizer.from_pretrained(
-        "meta-llama/Llama-2-7b-chat-hf"
-    )
-    train_dataset, eval_dataset = create_datasets(tokenizer)
-    run_training(train_dataset, eval_dataset)
+    # tokenizer = AutoTokenizer.from_pretrained(
+    #     "meta-llama/Llama-2-7b-chat-hf"
+    # )
+    # train_dataset, eval_dataset = create_datasets(tokenizer)
+    # run_training(train_dataset, eval_dataset)
 
-    del train_dataset, eval_dataset, model, tokenizer
+    # del train_dataset, eval_dataset
 
     # Reward Model Training
-    train_dataset = load_dataset(
-        "lvwerra/stack-exchange-paired",
-        data_dir="data/reward",
-        split="train",
-    )
-    train_dataset = train_dataset.select(range(100000))
-    eval_dataset = load_dataset(
-        "lvwerra/stack-exchange-paired",
-        data_dir="data/evaluation",
-        split="train",
-    )
-    eval_dataset = eval_dataset.select(range(50000))
+    # train_dataset = load_dataset(
+    #     "lvwerra/stack-exchange-paired",
+    #     data_dir="data/reward",
+    #     split="train",
+    # )
+    # train_dataset = train_dataset.select(range(100000))
+    # eval_dataset = load_dataset(
+    #     "lvwerra/stack-exchange-paired",
+    #     data_dir="data/evaluation",
+    #     split="train",
+    # )
+    # eval_dataset = eval_dataset.select(range(50000))
 
-    run_reward_modeling(train_dataset, eval_dataset)
+    # run_reward_modeling(train_dataset, eval_dataset)
 
-    del train_dataset, eval_dataset, model, tokenizer
+    # del train_dataset, eval_dataset
 
     # Reinforcement Learning Training
     tqdm.pandas()
