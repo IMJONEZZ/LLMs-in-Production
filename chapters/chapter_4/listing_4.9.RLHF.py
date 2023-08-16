@@ -329,7 +329,7 @@ def run_reward_modeling(train_data, val_data):
         optim="adamw_hf",
         lr_scheduler_type="linear",
     )
-    
+
     # Parameter Efficient FineTuning config
     peft_config = LoraConfig(
         task_type=TaskType.SEQ_CLS,
@@ -338,7 +338,7 @@ def run_reward_modeling(train_data, val_data):
         lora_alpha=32,
         lora_dropout=0.1,
     )
-    
+
     # Set up Reward Modeling model
     model = AutoModelForSequenceClassification.from_pretrained(
         "gpt2", num_labels=1, torch_dtype=torch.bfloat16
@@ -368,7 +368,9 @@ def run_reward_modeling(train_data, val_data):
             "attention_mask_k": [],
         }
         for question, response_j, response_k in zip(
-            examples["question"], examples["response_j"], examples["response_k"]
+            examples["question"],
+            examples["response_j"],
+            examples["response_k"],
         ):
             tokenized_j = tokenizer(
                 "Question: " + question + "\n\nAnswer: " + response_j,
@@ -413,7 +415,6 @@ def run_reward_modeling(train_data, val_data):
         lambda x: len(x["input_ids_j"]) <= 512
         and len(x["input_ids_k"]) <= 512
     )
-
 
     trainer = RewardTrainer(
         model=model,
@@ -500,7 +501,9 @@ def run_RL():
         )  # to avoid a ` pipeline` bug
     reward_tokenizer = AutoTokenizer.from_pretrained("gpt2")
     reward_tokenizer.pad_token = reward_tokenizer.eos_token
-    reward_model = AutoModelForSequenceClassification.from_pretrained("./chapters/chapter_4/models/RLHF/gpt2_peft_stack-exchange-paired_rmts__100000_2e-5/")
+    reward_model = AutoModelForSequenceClassification.from_pretrained(
+        "./chapters/chapter_4/models/RLHF/gpt2_peft_stack-exchange-paired_rmts__100000_2e-5/"
+    )
     reward_model.config.pad_token_id = reward_tokenizer.eos_token_id
     sentiment_pipe = pipeline(
         "sentiment-analysis",

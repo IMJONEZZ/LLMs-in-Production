@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.special import softmax
+from scipy.special import softmax, logsumexp
 
 print("Step 1: Input : 3 inputs, d_model=4")
 x = np.array(
@@ -120,10 +120,10 @@ def DotProductAttention(query, key, value, mask, scale=True):
         dots = np.where(mask, dots, np.full_like(dots, -1e9))
 
     # Softmax formula implementation
-    logsumexp = scipy.special.logsumexp(dots, axis=-1, keepdims=True)
+    logsumexpo = logsumexp(dots, axis=-1, keepdims=True)
 
     # Take exponential of dots minus logsumexp to get softmax
-    dots = np.exp(dots - logsumexp)
+    dots = np.exp(dots - logsumexpo)
 
     # Multiply dots by value to get self-attention
     attention = np.matmul(dots, value)

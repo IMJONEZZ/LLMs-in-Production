@@ -4,18 +4,22 @@ from utils import get_batches, compute_pca, get_dict
 import re
 from matplotlib import pyplot
 
-
+# Create our corpus for training
 with open("hamlet.txt", "r", encoding="utf-8") as f:
     data = f.read()
+
+# Slightly clean the data by removing punctuation, tokenizing by word, and converting to lowercase alpha characters
 data = re.sub(r"[,!?;-]", ".", data)
 data = nltk.word_tokenize(data)
 data = [ch.lower() for ch in data if ch.isalpha() or ch == "."]
 print("Number of tokens:", len(data), "\n", data[500:515])
 
+# Get our Bag of Words, along with a distribution
 fdist = nltk.FreqDist(word for word in data)
 print("Size of vocabulary:", len(fdist))
 print("Most Frequent Tokens:", fdist.most_common(20))
 
+# Create 2 dictionaries to speed up time-to-convert and keep track of vocabulary
 word2Ind, Ind2word = get_dict(data)
 V = len(word2Ind)
 print("Size of vocabulary:", V)
@@ -24,6 +28,7 @@ print("Index of the word 'king':", word2Ind["king"])
 print("Word which has index 2743:", Ind2word[2743])
 
 
+# Here we create our Neural network with 1 layer and 2 parameters
 def initialize_model(N, V, random_seed=1):
     """
     Inputs:
@@ -43,17 +48,7 @@ def initialize_model(N, V, random_seed=1):
     return W1, W2, b1, b2
 
 
-tmp_N = 4
-tmp_V = 10
-tmp_W1, tmp_W2, tmp_b1, tmp_b2 = initialize_model(tmp_N, tmp_V)
-assert tmp_W1.shape == ((tmp_N, tmp_V))
-assert tmp_W2.shape == ((tmp_V, tmp_N))
-print(f"tmp_W1.shape: {tmp_W1.shape}")
-print(f"tmp_W2.shape: {tmp_W2.shape}")
-print(f"tmp_b1.shape: {tmp_b1.shape}")
-print(f"tmp_b2.shape: {tmp_b2.shape}")
-
-
+# Create our final classification layer, which makes all possibilities add up to 1
 def softmax(z):
     """
     Inputs:
@@ -65,11 +60,7 @@ def softmax(z):
     return yhat
 
 
-tmp = np.array([[1, 2, 3], [1, 1, 1]])
-tmp_sm = softmax(tmp)
-print(tmp_sm)
-
-
+# Define the behavior for moving forward through our model, along with an activation function
 def forward_prop(x, W1, W2, b1, b2):
     """
     Inputs:
@@ -84,27 +75,7 @@ def forward_prop(x, W1, W2, b1, b2):
     return z, h
 
 
-tmp_N = 2
-tmp_V = 3
-tmp_x = np.array([[0, 1, 0]]).T
-tmp_W1, tmp_W2, tmp_b1, tmp_b2 = initialize_model(N=tmp_N, V=tmp_V)
-
-print(f"x has shape {tmp_x.shape}")
-print(f"N is {tmp_N} and vocabulary size V is {tmp_V}")
-
-tmp_z, tmp_h = forward_prop(tmp_x, tmp_W1, tmp_W2, tmp_b1, tmp_b2)
-print("call forward prop")
-print()
-
-print(f"z has shape {tmp_z.shape}")
-print("z has values:")
-print(tmp_z)
-
-print(f"h has shape {tmp_h.shape}")
-print("h has values:")
-print(tmp_h)
-
-
+# Define how we determine the distance between ground truth and model predictions
 def compute_cost(y, yhat, batch_size):
     logprobs = np.multiply(np.log(yhat), y) + np.multiply(
         np.log(1 - yhat), 1 - y
@@ -114,38 +85,7 @@ def compute_cost(y, yhat, batch_size):
     return cost
 
 
-tmp_C = 2
-tmp_N = 50
-tmp_batch_size = 4
-tmp_word2Ind, tmp_Ind2word = get_dict(data)
-tmp_V = len(word2Ind)
-
-tmp_x, tmp_y = next(
-    get_batches(data, tmp_word2Ind, tmp_V, tmp_C, tmp_batch_size)
-)
-
-print(f"tmp_x.shape {tmp_x.shape}")
-print(f"tmp_y.shape {tmp_y.shape}")
-
-tmp_W1, tmp_W2, tmp_b1, tmp_b2 = initialize_model(tmp_N, tmp_V)
-
-print(f"tmp_W1.shape {tmp_W1.shape}")
-print(f"tmp_W2.shape {tmp_W2.shape}")
-print(f"tmp_b1.shape {tmp_b1.shape}")
-print(f"tmp_b2.shape {tmp_b2.shape}")
-
-tmp_z, tmp_h = forward_prop(tmp_x, tmp_W1, tmp_W2, tmp_b1, tmp_b2)
-print(f"tmp_z.shape: {tmp_z.shape}")
-print(f"tmp_h.shape: {tmp_h.shape}")
-
-tmp_yhat = softmax(tmp_z)
-print(f"tmp_yhat.shape: {tmp_yhat.shape}")
-
-tmp_cost = compute_cost(tmp_y, tmp_yhat, tmp_batch_size)
-print("call compute_cost")
-print(f"tmp_cost {tmp_cost:.4f}")
-
-
+# Define how we move backward through the model and collect gradients
 def back_prop(x, yhat, y, h, W1, W2, b1, b2, batch_size):
     """
     Inputs:
@@ -168,61 +108,7 @@ def back_prop(x, yhat, y, h, W1, W2, b1, b2, batch_size):
     return grad_W1, grad_W2, grad_b1, grad_b2
 
 
-tmp_C = 2
-tmp_N = 50
-tmp_batch_size = 4
-tmp_word2Ind, tmp_Ind2word = get_dict(data)
-tmp_V = len(word2Ind)
-
-tmp_x, tmp_y = next(
-    get_batches(data, tmp_word2Ind, tmp_V, tmp_C, tmp_batch_size)
-)
-
-print("get a batch of data")
-print(f"tmp_x.shape {tmp_x.shape}")
-print(f"tmp_y.shape {tmp_y.shape}")
-
-print()
-print("Initialize weights and biases")
-tmp_W1, tmp_W2, tmp_b1, tmp_b2 = initialize_model(tmp_N, tmp_V)
-
-print(f"tmp_W1.shape {tmp_W1.shape}")
-print(f"tmp_W2.shape {tmp_W2.shape}")
-print(f"tmp_b1.shape {tmp_b1.shape}")
-print(f"tmp_b2.shape {tmp_b2.shape}")
-
-print()
-print("Forwad prop to get z and h")
-tmp_z, tmp_h = forward_prop(tmp_x, tmp_W1, tmp_W2, tmp_b1, tmp_b2)
-print(f"tmp_z.shape: {tmp_z.shape}")
-print(f"tmp_h.shape: {tmp_h.shape}")
-
-print()
-print("Get yhat by calling softmax")
-tmp_yhat = softmax(tmp_z)
-print(f"tmp_yhat.shape: {tmp_yhat.shape}")
-
-tmp_m = 2 * tmp_C
-tmp_grad_W1, tmp_grad_W2, tmp_grad_b1, tmp_grad_b2 = back_prop(
-    tmp_x,
-    tmp_yhat,
-    tmp_y,
-    tmp_h,
-    tmp_W1,
-    tmp_W2,
-    tmp_b1,
-    tmp_b2,
-    tmp_batch_size,
-)
-
-print()
-print("call back_prop")
-print(f"tmp_grad_W1.shape {tmp_grad_W1.shape}")
-print(f"tmp_grad_W2.shape {tmp_grad_W2.shape}")
-print(f"tmp_grad_b1.shape {tmp_grad_b1.shape}")
-print(f"tmp_grad_b2.shape {tmp_grad_b2.shape}")
-
-
+# Put it all together and train
 def gradient_descent(data, word2Ind, N, V, num_iters, alpha=0.03):
     """
     This is the gradient_descent function
@@ -263,6 +149,7 @@ def gradient_descent(data, word2Ind, N, V, num_iters, alpha=0.03):
     return W1, W2, b1, b2
 
 
+# Train the model
 C = 2
 N = 50
 word2Ind, Ind2word = get_dict(data)
@@ -271,6 +158,7 @@ num_iters = 150
 print("Call gradient_descent")
 W1, W2, b1, b2 = gradient_descent(data, word2Ind, N, V, num_iters)
 
+# After listing 2.4 is done and gradient descent has been executed
 words = [
     "king",
     "queen",

@@ -4,13 +4,13 @@ import time
 # Url for the API endpoint
 url = "http://localhost:8000/hello"
 headers = {
-  'Content-Type': 'application/json',
-  'Authorization': 'Bearer 1234567abcdefg'
+    "Content-Type": "application/json",
+    "Authorization": "Bearer 1234567abcdefg",
 }
 
 bad_headers = {
-  'Content-Type': 'application/json',
-  'Authorization': 'Bearer password'
+    "Content-Type": "application/json",
+    "Authorization": "Bearer password",
 }
 
 # Make a request with the correct API key
@@ -26,5 +26,9 @@ print(response.json())
 # Make multiple requests to test the rate limiter
 for i in range(6):
     response = requests.get(url, headers=headers)
-    print(f"Request {i+1}: Status code: {response.status_code}, Response: {response.text}")
-    time.sleep(1)  # Sleep for 1 second to make the requests in a spaced out manner
+    print(
+        f"Request {i+1}: Status code: {response.status_code}, Response: {response.text}"
+    )
+    time.sleep(
+        1
+    )  # Sleep for 1 second to make the requests in a spaced out manner

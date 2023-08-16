@@ -1,6 +1,26 @@
 import torch
+import numpy as np
+from gensim.models import Word2Vec
+from sklearn.model_selection import train_test_split
 
+
+# Create our corpus for training
+with open("./chapters/chapter_2/hamlet.txt", "r", encoding="utf-8") as f:
+    data = f.readlines()
+
+# Embeddings are needed to give semantic value to the inputs of an LSTM
 # embedding_weights = torch.Tensor(word_vectors.vectors)
+
+EMBEDDING_DIM = 100
+model = Word2Vec(
+    data, vector_size=EMBEDDING_DIM, window=3, min_count=3, workers=4
+)
+word_vectors = model.wv
+print(f"Vocabulary Length: {len(model.wv)}")
+del model
+
+padding_value = len(word_vectors.index_to_key)
+embedding_weights = torch.Tensor(word_vectors.vectors)
 
 
 class RNN(torch.nn.Module):
@@ -107,6 +127,13 @@ criterion = torch.nn.BCEWithLogitsLoss()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
+def binary_accuracy(preds, y):
+    rounded_preds = torch.round(torch.sigmoid(preds))
+    correct = (rounded_preds == y).float()
+    acc = correct.sum() / len(correct)
+    return acc
+
+
 def train(model, iterator, optimizer, criterion):
     epoch_loss = 0
     epoch_acc = 0
@@ -138,6 +165,59 @@ def evaluate(model, iterator, criterion):
             epoch_acc += acc.item()
 
     return epoch_loss / len(iterator), epoch_acc / len(iterator)
+
+
+batch_size = 128  # Usually should be a power of 2 because it's the easiest for computer memory.
+
+
+def iterator(X, y):
+    size = len(X)
+    permutation = np.random.permutation(size)
+    iterate = []
+    for i in range(0, size, batch_size):
+        indices = permutation[i : i + batch_size]
+        batch = {}
+        batch["text"] = [X[i] for i in indices]
+        batch["label"] = [y[i] for i in indices]
+
+        batch["text"], batch["label"] = zip(
+            *sorted(
+                zip(batch["text"], batch["label"]),
+                key=lambda x: len(x[0]),
+                reverse=True,
+            )
+        )
+        batch["length"] = [len(utt) for utt in batch["text"]]
+        batch["length"] = torch.IntTensor(batch["length"])
+        batch["text"] = torch.nn.utils.rnn.pad_sequence(
+            batch["text"], batch_first=True
+        ).t()
+        batch["label"] = torch.Tensor(batch["label"])
+
+        batch["label"] = batch["label"].to(device)
+        batch["length"] = batch["length"].to(device)
+        batch["text"] = batch["text"].to(device)
+
+        iterate.append(batch)
+
+    return iterate
+
+
+index_utt = word_vectors.key_to_index
+
+# You've got to determine some labels for whatever you're training on.
+X_train, X_test, y_train, y_test = train_test_split(
+    index_utt, labels, test_size=0.2
+)
+X_train, X_val, y_train, y_val = train_test_split(
+    X_train, y_train, test_size=0.2
+)
+
+train_iterator = iterator(X_train, y_train)
+validate_iterator = iterator(X_val, y_val)
+test_iterator = iterator(X_test, y_test)
+
+print(len(train_iterator), len(validate_iterator), len(test_iterator))
 
 
 N_EPOCHS = 25

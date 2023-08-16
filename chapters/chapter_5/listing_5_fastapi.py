@@ -22,6 +22,7 @@ async def get_api_key(api_key: str = Depends(oauth2_scheme)):
             detail="Invalid API Key",
         )
 
+
 @app.get("/hello", dependencies=[Depends(get_api_key)])
 @limiter.limit("5/minute")
 async def hello(request: Request):
