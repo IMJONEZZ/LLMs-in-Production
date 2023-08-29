@@ -173,7 +173,7 @@ if __name__ == "__main__":
 
     # Dataset
     with open(
-        "./chapters/chapter_2/crimeandpunishment.txt", "r", encoding="utf-8"
+        "./data/crimeandpunishment.txt", "r", encoding="utf-8"
     ) as f:
         text = f.read()
 

@@ -4,7 +4,7 @@ import numpy as np
 
 my_corpus = PlaintextCorpusReader("./", ".*\.txt")
 
-sents = my_corpus.sents(fileids="hamlet.txt")
+sents = my_corpus.sents(fileids="./data/hamlet.txt")
 
 
 def count_utts(result, utts, ys):

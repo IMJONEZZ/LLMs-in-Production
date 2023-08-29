@@ -60,7 +60,7 @@ class MarkovChain:
 
 
 if __name__ == "__main__":
-    with open("hamlet.txt", "r", encoding="utf-8") as f:
+    with open("./data/hamlet.txt", "r", encoding="utf-8") as f:
         text = f.read()
     HMM = MarkovChain()
     HMM.add_document(text)

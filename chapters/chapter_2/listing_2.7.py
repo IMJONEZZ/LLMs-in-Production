@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 
 
 # Create our corpus for training
-with open("./chapters/chapter_2/hamlet.txt", "r", encoding="utf-8") as f:
+with open("./data/hamlet.txt", "r", encoding="utf-8") as f:
     data = f.readlines()
 
 # Embeddings are needed to give semantic value to the inputs of an LSTM

@@ -10,7 +10,7 @@ from datasets import load_dataset
 
 # Load and format the dataset
 dataset = load_dataset(
-    "text", data_files="./chapters/chapter_2/crimeandpunishment.txt"
+    "text", data_files="./data/crimeandpunishment.txt"
 )
 dataset = dataset.filter(lambda sentence: len(sentence["text"]) > 1)
 print(dataset["train"][0])

@@ -9,26 +9,27 @@ from nltk.lm import MLE
 
 # Create a corpus from any number of plain .txt files
 my_corpus = PlaintextCorpusReader("./", ".*\.txt")
+file_ids = "./data/hamlet.txt"
 
-for sent in my_corpus.sents(fileids="hamlet.txt"):
+for sent in my_corpus.sents(fileids=file_ids):
     print(sent)
 
 # Pad each side of every line in the corpus with <s> and </s> to indicate the start and end of utterances
 padded_trigrams = list(
-    pad_both_ends(my_corpus.sents(fileids="hamlet.txt")[1104], n=2)
+    pad_both_ends(my_corpus.sents(fileids=file_ids)[1104], n=2)
 )
 list(everygrams(padded_trigrams, max_len=3))
 
 list(
     flatten(
         pad_both_ends(sent, n=2)
-        for sent in my_corpus.sents(fileids="hamlet.txt")
+        for sent in my_corpus.sents(fileids=file_ids)
     )
 )
 
 # Allow everygrams to create a training set and a vocab object from the data
 train, vocab = padded_everygram_pipeline(
-    3, my_corpus.sents(fileids="hamlet.txt")
+    3, my_corpus.sents(fileids=file_ids)
 )
 
 # Instantiate and train the model we’ll use for N-Grams, a Maximum Likelihood Estimator (MLE)
@@ -43,7 +44,7 @@ len(lm.vocab)
 # And finally, language can be generated with this model and conditioned with n-1 tokens preceding
 lm.generate(6, ["to", "be"])
 
-lm.vocab.lookup(my_corpus.sents(fileids="hamlet.txt")[1104])
+lm.vocab.lookup(my_corpus.sents(fileids=file_ids)[1104])
 
 lm.vocab.lookup(["aliens", "from", "Mars"])
 

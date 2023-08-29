@@ -15,6 +15,12 @@ if [ ! -f "requirements.txt" ]; then
   exit 1
 fi
 
+# Check for git lfs
+if [ ! -f "requirements.txt" ]; then
+  echo "please install git-lfs, e.g. 'brew install git-lfs' or visit https://git-lfs.com/ for your OS instructions"
+  exit 1
+fi
+
 # Check if the 'llmbook' environment already exists
 if conda info --envs | grep -q 'llmbook'; then
   echo "Environment 'llmbook' already exists. Skipping environment creation."

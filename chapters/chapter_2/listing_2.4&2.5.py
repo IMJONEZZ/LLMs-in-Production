@@ -5,7 +5,7 @@ import re
 from matplotlib import pyplot
 
 # Create our corpus for training
-with open("hamlet.txt", "r", encoding="utf-8") as f:
+with open("./data/hamlet.txt", "r", encoding="utf-8") as f:
     data = f.read()
 
 # Slightly clean the data by removing punctuation, tokenizing by word, and converting to lowercase alpha characters

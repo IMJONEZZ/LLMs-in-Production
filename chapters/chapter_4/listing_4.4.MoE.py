@@ -11,7 +11,7 @@ import torch
 
 # Load and format the dataset
 dataset = load_dataset(
-    "text", data_files="./chapters/chapter_2/crimeandpunishment.txt"
+    "text", data_files="./data/crimeandpunishment.txt"
 )
 dataset = dataset.filter(lambda sentence: len(sentence["text"]) > 1)
 print(f"Dataset 1: {dataset['train'][0]}")
