@@ -172,9 +172,7 @@ if __name__ == "__main__":
     dropout = 0.2
 
     # Dataset
-    with open(
-        "./data/crimeandpunishment.txt", "r", encoding="utf-8"
-    ) as f:
+    with open("./data/crimeandpunishment.txt", "r", encoding="utf-8") as f:
         text = f.read()
 
     # Character-based pseudo-tokenization
