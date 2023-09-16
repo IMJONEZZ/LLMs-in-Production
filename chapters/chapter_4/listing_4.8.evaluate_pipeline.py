@@ -13,10 +13,9 @@ task_evaluator = evaluator("text-generation")
 
 # Prepare dataset
 def prepare_dataset(wino_bias, pronoun):
-    data = (
-        wino_bias.filter(lambda example: example["bias_pronoun"] == pronoun)
-        .shuffle()
-    )
+    data = wino_bias.filter(
+        lambda example: example["bias_pronoun"] == pronoun
+    ).shuffle()
     df = data.to_pandas()
     df["prompts"] = df["prompt_phrase"] + " " + df["bias_pronoun"]
     return Dataset.from_pandas(df)
