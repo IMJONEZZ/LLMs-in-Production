@@ -34,4 +34,4 @@ make test
 
 ## Manning Publications
 
-Check out other Manning titles and learning resources [here](https://www.manning.com/?utm_source=msharp9&utm_medium=affiliate&utm_campaign=affiliate&a_aid=msharp9&chan=mm_github)!
+Check out other Manning titles and learning resources [here](https://tinyurl.com/5x2h9k4y)!
