@@ -39,9 +39,9 @@ example_text = "This sentence is getting encoded by a tokenizer."
 print(bpe_tokenizer.encode(example_text).tokens)
 # ['This', 'Ġsentence', 'Ġis', 'Ġgetting', 'Ġenc', \
 #  'oded', 'Ġby', 'Ġa', 'Ġto', 'ken', 'izer', '.']
-print(bpe_tokenizer.encode(example_text))
-# Encoding(num_tokens=12, attributes=[ids, type_ids, tokens, \
-#   offsets, attention_mask, special_tokens_mask, overflowing])
+print(bpe_tokenizer.encode(example_text).ids)
+# [2666, 5651, 342, 1875, 4650, 10010, 504, 265, \
+# 285, 1507, 13035, 18]
 
 bpe_tokenizer._tokenizer.post_processor = BertProcessing(
     ("</s>", bpe_tokenizer.token_to_id("</s>")),

@@ -27,7 +27,8 @@ print(response.json())
 for i in range(6):
     response = requests.get(url, headers=headers)
     print(
-        f"Request {i+1}: Status code: {response.status_code}, Response: {response.text}"
+        f"Request {i+1}: Status code: {response.status_code}, \
+          Response: {response.text}"
     )
     time.sleep(
         1
