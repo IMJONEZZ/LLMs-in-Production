@@ -168,4 +168,5 @@ cython_debug/
 ww-img/
 
 # Chapters
+models/
 chapters/chapter_4/tokenizers/
