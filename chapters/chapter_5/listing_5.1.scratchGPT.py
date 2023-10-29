@@ -1,4 +1,7 @@
 import torch
+from accelerate import Accelerator
+
+# import bitsandbytes as bnb # Comment this out if running on Windows
 
 
 class GPT(torch.nn.Module):
@@ -164,12 +167,14 @@ if __name__ == "__main__":
     max_iters = 5000
     eval_interval = 500
     learning_rate = 3e-4
-    device = "cuda" if torch.cuda.is_available() else "cpu"
     eval_iters = 200
     n_embed = 384
     n_head = 6
     n_layer = 6
     dropout = 0.2
+    accelerator = Accelerator()
+    device = accelerator.device
+    doing_quantization = False  # Change to True if imported bitsandbytes
 
     # Dataset
     with open("./data/crimeandpunishment.txt", "r", encoding="utf-8") as f:
@@ -187,14 +192,28 @@ if __name__ == "__main__":
     val_data = data[n:]
 
     # Instantiate the model and look at the parameters
-    model = GPT()
-    m = model.to(device)
-    print(sum(p.numel() for p in m.parameters()) / 1e6, "Model parameters")
+    model = GPT().to(device)
+    print("Instantiated Model")
+    print(
+        sum(param.numel() for param in model.parameters()) / 1e6,
+        "Model parameters",
+    )
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+    optimizer = (
+        torch.optim.AdamW(model.parameters(), lr=learning_rate)
+        if not doing_quantization
+        else bnb.optim.Adam(model.parameters(), lr=learning_rate)
+    )
+    print("Instantiated Optimizer")
+
+    model, optimizer, train_data = accelerator.prepare(
+        model, optimizer, train_data
+    )
+    print("Prepared model, optimizer, and data")
 
     # Training block
     for iter in range(max_iters):
+        print(f"Running Epoch {iter}")
         if iter % eval_interval == 0 or iter == max_iters - 1:
             losses = estimate_loss()
             print(
@@ -204,7 +223,7 @@ if __name__ == "__main__":
         xb, yb = get_batch("train")
         logits, loss = model(xb, yb)
         optimizer.zero_grad(set_to_none=True)
-        loss.backward()
+        accelerator.backward(loss)
         optimizer.step()
 
     # Save the model
