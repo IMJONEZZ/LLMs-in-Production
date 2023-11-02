@@ -15,6 +15,7 @@ from threading import Thread
 
 app = FastAPI()
 
+# Load tokenizer, model, and streamer into memory
 tokenizer = AutoTokenizer.from_pretrained("gpt2")
 model = AutoModelForCausalLM.from_pretrained("gpt2")
 streamer = TextIteratorStreamer(tokenizer)
@@ -23,6 +24,7 @@ streamer = TextIteratorStreamer(tokenizer)
 async def stream_results() -> AsyncGenerator[bytes, None]:
     for response in streamer:
         await asyncio.sleep(1)  # slow things down to see streaming
+        # It's typical to return streamed responses byte encoded
         yield (response + "\n").encode("utf-8")
 
 
@@ -38,6 +40,8 @@ async def generate(request: Request) -> Response:
 
     inputs = tokenizer([prompt], return_tensors="pt")
     generation_kwargs = dict(inputs, streamer=streamer, max_new_tokens=20)
+
+    # Start a seperate thread to generate results
     thread = Thread(target=model.generate, kwargs=generation_kwargs)
     thread.start()
 
@@ -45,6 +49,7 @@ async def generate(request: Request) -> Response:
 
 
 if __name__ == "__main__":
+    # Start Service - Defaults to localhost on port 8000
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default=None)
     parser.add_argument("--port", type=int, default=8000)

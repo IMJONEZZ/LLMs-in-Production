@@ -59,3 +59,17 @@ if __name__ == "__main__":
     path = os.path.join(OUTPUT_DIR, all_files[0])
     result_view = why.read(path).view()
     print(result_view.to_pandas().head())
+# column        cardinality/est  cardinality/lower_1  cardinality/upper_1
+# conversation      1158.936483          1144.135654          1174.106326
+# ...
+# column        counts/inf  counts/n  counts/nan  counts/null
+# conversation           0      1160           0            0
+# ...
+# column        udf/flesch_reading_ease:cardinality/est
+# conversation                               425.514743
+# ...
+# column        udf/jailbreak_similarity:cardinality/est
+# conversation                               1172.226702
+# ...
+# column        udf/toxicity:types/string  udf/toxicity:types/tensor
+# conversation                          0                          0
