@@ -8,7 +8,7 @@ from tokenizers.processors import BertProcessing
 # Initialize the txts to train from
 paths = [str(x) for x in Path("./data/").glob("**/*.txt")]
 
-# Train a BPE tokenizer
+# Train a Byte-Pair Encoding tokenizer
 bpe_tokenizer = ByteLevelBPETokenizer()
 
 bpe_tokenizer.train(
@@ -98,6 +98,10 @@ tokenizer.mask_token_id = sentencepiece_tokenizer.token_to_id("<mask>")
 # and save for later!
 tokenizer.save_pretrained(token_dir)
 
+print(tokenizer.tokenize(example_text))
+# ['▁This', '▁s', 'ent', 'ence', '▁is', '▁', 'g', 'et', 'tin', 'g', '▁',
+#  'en', 'co', 'd', 'ed', '▁', 'b', 'y', '▁a', '▁', 't', 'ok', 'en',
+#  'iz', 'er', '.']
 print(tokenizer.encode(example_text))
 # [814, 1640, 609, 203, 1810, 623, 70, \
 #  351, 148, 371, 125, 146, 2402, 959, 632]

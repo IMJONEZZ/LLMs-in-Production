@@ -4,15 +4,32 @@ import os
 import numpy as np
 import pandas as pd
 import time
+from urllib import request
+import tarfile
 
-from crop import (
-    crop,
-)  # Here: https://github.com/hendrycks/test/blob/master/crop.py
+# Download utilities function if needed
+request.urlretrieve(
+    "https://raw.githubusercontent.com/hendrycks/test/master/crop.py",
+    "utils/crop.py",
+)
+from utils.crop import crop  # noqa E402
 
 openai.api_key = "INSERTYOURKEYHERE"  # Or use your own model
 choices = ["A", "B", "C", "D"]
 
 
+# Download and extract MMLU Dataset
+def download_and_extract_mmlu(dir):
+    mmlu = os.path.join(dir, "data.tar")
+    request.urlretrieve(
+        "https://people.eecs.berkeley.edu/~hendrycks/data.tar", mmlu
+    )
+    mmlu_tar = tarfile.open(mmlu)
+    mmlu_tar.extractall(dir)
+    mmlu_tar.close()
+
+
+# Helper functions
 def softmax(x):
     z = x - max(x)
     numerator = np.exp(z)
@@ -22,9 +39,9 @@ def softmax(x):
 
 
 def format_subject(subject):
-    l = subject.split("_")
+    entries = subject.split("_")
     s = ""
-    for entry in l:
+    for entry in entries:
         s += " " + entry
     return s
 
@@ -41,8 +58,9 @@ def format_example(df, idx, include_answer=True):
 
 
 def gen_prompt(train_df, subject, k=-1):
-    prompt = "The following are multiple choice questions (with answers) about {}.\n\n".format(
-        format_subject(subject)
+    prompt = (
+        "The following are multiple choice questions "
+        "(with answers) about {}.\n\n".format(format_subject(subject))
     )
     if k == -1:
         k = train_df.shape[0]
@@ -51,13 +69,14 @@ def gen_prompt(train_df, subject, k=-1):
     return prompt
 
 
+# Here we will evaluate the model against the dataset
 def eval(args, subject, engine, dev_df, test_df):
     cors = []
     all_probs = []
     answers = choices[: test_df.shape[1] - 2]
 
     for i in range(test_df.shape[0]):
-        # get prompt and make sure it fits
+        # Generate prompt from dataset
         k = args.ntrain
         prompt_end = format_example(test_df, i, include_answer=False)
         train_prompt = gen_prompt(dev_df, subject, k)
@@ -70,6 +89,7 @@ def eval(args, subject, engine, dev_df, test_df):
 
         label = test_df.iloc[i, test_df.shape[1] - 1]
 
+        # Prompt your model
         while True:
             try:
                 c = openai.Completion.create(
@@ -81,11 +101,12 @@ def eval(args, subject, engine, dev_df, test_df):
                     echo=True,
                 )  # Use your model here!
                 break
-            except:
+            except Exception:
                 print("pausing")
                 time.sleep(1)
                 continue
 
+        # Evaluate models response to questions answer
         lprobs = []
         for ans in answers:
             try:
@@ -94,20 +115,21 @@ def eval(args, subject, engine, dev_df, test_df):
                         " {}".format(ans)
                     ]
                 )
-            except:
+            except Exception:
                 print(
-                    "Warning: {} not found. Artificially adding log prob of -100.".format(
-                        ans
-                    )
+                    "Warning: {} not found. "
+                    "Artificially adding log prob of -100.".format(ans)
                 )
                 lprobs.append(-100)
         pred = {0: "A", 1: "B", 2: "C", 3: "D"}[np.argmax(lprobs)]
         probs = softmax(np.array(lprobs))
 
+        # Record results
         cor = pred == label
         cors.append(cor)
         all_probs.append(probs)
 
+    # Summarize results
     acc = np.mean(cors)
     cors = np.array(cors)
 
@@ -117,16 +139,21 @@ def eval(args, subject, engine, dev_df, test_df):
     return cors, acc, all_probs
 
 
+# Run Evaluations
 def main(args):
     engines = args.engine
+
+    # Download and prepare dataset subjects
+    download_and_extract_mmlu(args.data_dir)
     subjects = sorted(
         [
             f.split("_test.csv")[0]
-            for f in os.listdir(os.path.join(args.data_dir, "test"))
+            for f in os.listdir(os.path.join(args.data_dir, "data/test"))
             if "_test.csv" in f
         ]
     )
 
+    # Create directories to save results to if they don't exist
     if not os.path.exists(args.save_dir):
         os.mkdir(args.save_dir)
     for engine in engines:
@@ -140,23 +167,32 @@ def main(args):
     print(subjects)
     print(args)
 
+    # Run evaluations for each engine
     for engine in engines:
         print(engine)
         all_cors = []
 
         for subject in subjects:
+            # Prepare examples for prompting
             dev_df = pd.read_csv(
-                os.path.join(args.data_dir, "dev", subject + "_dev.csv"),
+                os.path.join(
+                    args.data_dir, "data/dev", subject + "_dev.csv"
+                ),
                 header=None,
             )[: args.ntrain]
+            # Prepare actual test questions
             test_df = pd.read_csv(
-                os.path.join(args.data_dir, "test", subject + "_test.csv"),
+                os.path.join(
+                    args.data_dir, "data/test", subject + "_test.csv"
+                ),
                 header=None,
             )
 
+            # Run evaluations
             cors, acc, probs = eval(args, subject, engine, dev_df, test_df)
             all_cors.append(cors)
 
+            # Save results
             test_df["{}_correct".format(engine)] = cors
             for j in range(probs.shape[1]):
                 choice = choices[j]
@@ -178,7 +214,13 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ntrain", "-k", type=int, default=5)
+    parser.add_argument(
+        "--ntrain",
+        "-k",
+        type=int,
+        default=5,
+        help="Number of samples to include for n-shot prompting",
+    )
     parser.add_argument("--data_dir", "-d", type=str, default="data")
     parser.add_argument("--save_dir", "-s", type=str, default="results")
     parser.add_argument(
@@ -187,6 +229,7 @@ if __name__ == "__main__":
         choices=["davinci", "curie", "babbage", "ada"],
         default=["davinci", "curie", "babbage", "ada"],
         nargs="+",
+        help="OpenAI model(s) you would like to evaluate",
     )
     args = parser.parse_args()
     main(args)

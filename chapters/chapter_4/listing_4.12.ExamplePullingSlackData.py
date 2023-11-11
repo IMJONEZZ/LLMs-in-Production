@@ -21,7 +21,7 @@ for channel_id, messages in all_messages.items():
             user = message["user"]
             timestamp = message["ts"]
             txts.append([timestamp, user, text])
-        except:
+        except Exception:
             pass
 
 slack_dataset = pandas.DataFrame(txts)
