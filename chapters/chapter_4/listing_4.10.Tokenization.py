@@ -25,7 +25,7 @@ bpe_tokenizer.train(
     ],
 )
 
-token_dir = "./chapters/chapter_4/tokenizers/bytelevelbpe/"
+token_dir = "./models/tokenizers/bytelevelbpe/"
 if not os.path.exists(token_dir):
     os.makedirs(token_dir)
 bpe_tokenizer.save_model(token_dir)
@@ -70,7 +70,7 @@ sentencepiece_tokenizer.train(
     special_tokens=special_tokens,
 )
 
-token_dir = "./chapters/chapter_4/tokenizers/sentencepiece/"
+token_dir = "./models/tokenizers/sentencepiece/"
 if not os.path.exists(token_dir):
     os.makedirs(token_dir)
 sentencepiece_tokenizer.save_model(token_dir)

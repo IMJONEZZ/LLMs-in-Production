@@ -1,3 +1,4 @@
+import os
 from transformers import (
     GPT2Tokenizer,
     GPT2LMHeadModel,
@@ -12,6 +13,11 @@ from datasets import load_dataset
 dataset = load_dataset("text", data_files="./data/crimeandpunishment.txt")
 dataset = dataset.filter(lambda sentence: len(sentence["text"]) > 1)
 print(dataset["train"][0])
+
+# Create model directory to save to
+model_dir = "./models/betterGPT/"
+if not os.path.exists(model_dir):
+    os.makedirs(model_dir)
 
 # Establish our GPT2 parameters (different from the paper and scratchGPT)
 config = GPT2Config(
@@ -51,11 +57,11 @@ print(f"Tokenized: {tokenized_dataset['train'][0]}")
 # Create a data collator to format the data for training
 data_collator = DataCollatorForLanguageModeling(
     tokenizer=tokenizer, mlm=True, mlm_probability=0.15
-)  # Masked Language Modeling - adds <MASK> tokens for the model to guess the words
+)  # Masked Language Modeling - adds <MASK> tokens to guess the words
 
 # Establish training arguments
 train_args = TrainingArguments(
-    output_dir="./chapters/chapter_4/models/betterGPT/",
+    output_dir=model_dir,
     num_train_epochs=1,
     per_device_train_batch_size=8,
     save_steps=5000,
@@ -73,13 +79,11 @@ trainer = Trainer(
 
 # Train and save the model
 trainer.train()
-trainer.save_model("./chapters/chapter_4/models/betterGPT/")
+trainer.save_model(model_dir)
 tokenizer.save_pretrained()
 
 # Load the saved model
-model = GPT2LMHeadModel.from_pretrained(
-    "./chapters/chapter_4/models/betterGPT/"
-)
+model = GPT2LMHeadModel.from_pretrained(model_dir)
 
 # Test the saved model
 input = "To be or not"

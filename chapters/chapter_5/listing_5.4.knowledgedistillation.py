@@ -1,3 +1,4 @@
+import os
 from transformers import (
     AutoTokenizer,
     TrainingArguments,
@@ -79,17 +80,24 @@ class DistillationTrainer(Trainer):
 
 
 if __name__ == "__main__":
+    # Create model directory to save to
+    model_dir = "./models/KDGPT/"
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+
+    # Define Teacher and Student models
     student_id = "gpt2"
     teacher_id = "gpt2-medium"
 
     teacher_tokenizer = AutoTokenizer.from_pretrained(teacher_id)
     student_tokenizer = AutoTokenizer.from_pretrained(student_id)
 
-    sample_tok = "Here's our sanity check."
+    sample = "Here's our sanity check."
 
-    assert teacher_tokenizer(sample_tok) == student_tokenizer(
-        sample_tok
-    ), f"Tokenizers need to have the same output! {teacher_tokenizer(sample_tok)} != {student_tokenizer(sample_tok)}"
+    assert teacher_tokenizer(sample) == student_tokenizer(sample), (
+        "Tokenizers need to have the same output! "
+        f"{teacher_tokenizer(sample)} != {student_tokenizer(sample)}"
+    )
 
     del teacher_tokenizer
     del student_tokenizer
@@ -117,7 +125,7 @@ if __name__ == "__main__":
 
     # define training args
     training_args = DistillationTrainingArguments(
-        output_dir="./chapters/chapter_4/models/KDGPT/",
+        output_dir=model_dir,
         num_train_epochs=1,
         per_device_train_batch_size=1,
         per_device_eval_batch_size=1,
@@ -172,4 +180,4 @@ if __name__ == "__main__":
     )
     trainer.train()
 
-    trainer.save_model("./chapters/chapter_4/models/KDGPT/")
+    trainer.save_model(model_dir)

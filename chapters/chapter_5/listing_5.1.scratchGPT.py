@@ -1,9 +1,11 @@
+import os
 import torch
 from accelerate import Accelerator
 
-# import bitsandbytes as bnb # Comment this out if running on Windows
+import bitsandbytes as bnb  # Comment this out if running on Windows
 
 
+# Define the overall GPT Architecture
 class GPT(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -56,6 +58,7 @@ class GPT(torch.nn.Module):
         return idx
 
 
+# Define the building blocks of the model
 class Block(torch.nn.Module):
     def __init__(self, n_embed, n_head):
         super().__init__()
@@ -128,6 +131,7 @@ class FeedFoward(torch.nn.Module):
         return self.net(x)
 
 
+# Helper functions for training
 def encode(string):
     return [utt2int[c] for c in string]
 
@@ -160,6 +164,7 @@ def estimate_loss():
     return out
 
 
+# Train the model
 if __name__ == "__main__":
     # Parmeters for our experiment
     batch_size = 64  # Number of utterances at once
@@ -217,7 +222,8 @@ if __name__ == "__main__":
         if iter % eval_interval == 0 or iter == max_iters - 1:
             losses = estimate_loss()
             print(
-                f"| step {iter}: train loss {losses['train']:.4f} | validation loss {losses['val']:.4f} |"
+                f"| step {iter}: train loss {losses['train']:.4f} "
+                "| validation loss {losses['val']:.4f} |"
             )
 
         xb, yb = get_batch("train")
@@ -226,16 +232,20 @@ if __name__ == "__main__":
         accelerator.backward(loss)
         optimizer.step()
 
+    # Create model directory
+    model_dir = "./models/scratchGPT/"
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+
     # Save the model
+    model_path = model_dir + "model.pt"
     torch.save(
         model.state_dict(),
-        "./chapters/chapter_4/models/scratchGPT/model.pt",
+        model_path,
     )
 
     # Load the saved model
-    loaded = GPT().load_state_dict(
-        "./chapters/chapter_4/models/scratchGPT/model.pt"
-    )
+    loaded = GPT().load_state_dict(model_path)
 
     # Test the loaded moel
     context = torch.zeros((1, 1), dtype=torch.long, device=device)

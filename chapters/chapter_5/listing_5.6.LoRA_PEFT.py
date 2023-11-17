@@ -1,3 +1,4 @@
+import os
 from datasets import load_dataset
 from transformers import (
     AutoModelForTokenClassification,
@@ -21,6 +22,11 @@ model_checkpoint = "meta-llama/Llama-2-7b-hf"
 lr = 1e-3
 batch_size = 16
 num_epochs = 10
+
+# Create model directory to save to
+model_dir = "./models/LoRAPEFT"
+if not os.path.exists(model_dir):
+    os.makedirs(model_dir)
 
 bionlp = load_dataset("tner/bionlp2004")
 
@@ -142,7 +148,7 @@ model = get_peft_model(model, peft_config)
 model.print_trainable_parameters()
 
 training_args = TrainingArguments(
-    output_dir="./chapters/chapter_4/models/LoRAPEFT",
+    output_dir=model_dir,
     learning_rate=lr,
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
@@ -166,7 +172,7 @@ trainer = Trainer(
 trainer.train()
 
 peft_model_id = "stevhliu/roberta-large-lora-token-classification"
-config = PeftConfig.from_pretrained("./chapters/chapter_4/models/LoRAPEFT")
+config = PeftConfig.from_pretrained(model_dir)
 inference_model = AutoModelForTokenClassification.from_pretrained(
     config.base_model_name_or_path,
     num_labels=11,
@@ -176,7 +182,10 @@ inference_model = AutoModelForTokenClassification.from_pretrained(
 tokenizer = AutoTokenizer.from_pretrained(config.base_model_name_or_path)
 model = PeftModel.from_pretrained(inference_model, peft_model_id)
 
-text = "The activation of IL-2 gene expression and NF-kappa B through CD28 requires reactive oxygen production by 5-lipoxygenase."
+text = (
+    "The activation of IL-2 gene expression and NF-kappa B through CD28 "
+    "requires reactive oxygen production by 5-lipoxygenase."
+)
 inputs = tokenizer(text, return_tensors="pt")
 
 with torch.no_grad():

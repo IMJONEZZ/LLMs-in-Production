@@ -1,3 +1,4 @@
+import os
 from transformers import (
     AutoTokenizer,
     SwitchTransformersForConditionalGeneration,
@@ -13,6 +14,11 @@ import torch
 dataset = load_dataset("text", data_files="./data/crimeandpunishment.txt")
 dataset = dataset.filter(lambda sentence: len(sentence["text"]) > 1)
 print(f"Dataset 1: {dataset['train'][0]}")
+
+# Create model directory to save to
+model_dir = "./models/MoE/"
+if not os.path.exists(model_dir):
+    os.makedirs(model_dir)
 
 # Instantiate our tokenizer
 tokenizer = AutoTokenizer.from_pretrained("google/switch-base-8")
@@ -50,7 +56,7 @@ data_collator = DataCollatorForLanguageModeling(
 
 # Establish training arguments
 train_args = TrainingArguments(
-    output_dir="./chapters/chapter_4/models/MoE/",
+    output_dir=model_dir,
     num_train_epochs=1,
     per_device_train_batch_size=8,
     save_steps=5000,
@@ -68,12 +74,12 @@ trainer = Trainer(
 
 # Train and save the model
 trainer.train()
-trainer.save_model("./chapters/chapter_4/models/MoE/")
-tokenizer.save_pretrained("./chapters/chapter_4/models/MoE/")
+trainer.save_model(model_dir)
+tokenizer.save_pretrained(model_dir)
 
 # Load the saved model
 model = SwitchTransformersForConditionalGeneration.from_pretrained(
-    "./chapters/chapter_4/models/MoE/",
+    model_dir,
     device_map="auto",
     torch_dtype=torch.float16,
 )
