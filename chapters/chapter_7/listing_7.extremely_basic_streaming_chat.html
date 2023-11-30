@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Simple Chat App</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            #message-input {
+                width: 95%;
+                padding: 8px;
+            }
+
+            #chat-container {
+                width: 95%;
+                margin: 20px auto;
+                border: 1px solid #ccc;
+                padding: 10px;
+                overflow-y: scroll;
+                max-height: 300px;
+            }
+        </style>
+    </head>
+
+    <body>
+        <input type="text" id="message-input" placeholder="Type your message...">
+        <button onclick="sendMessage()">Send</button>
+        <div id="chat-container"></div>
+    </body>
+
+    <script>
+        function sendMessage() {
+            var messageInput = document.getElementById('message-input');
+            var message = messageInput.value.trim();
+
+            if (message !== '') {
+                appendMessage('You: ' + message);
+                messageInput.value = '';
+                sendToServer(message);
+            }
+        }
+
+        function appendMessage(message) {
+            var chatContainer = document.getElementById('chat-container');
+            var messageElement = document.createElement('div');
+            messageElement.textContent = message;
+            chatContainer.appendChild(messageElement);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return messageElement
+        }
+
+        async function sendToServer(message) {
+            var payload = {
+                prompt: message
+            }
+
+            const response = await fetch('http://localhost:8000/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+
+            var responseText = 'LLM: ';
+            messageElement = appendMessage(responseText);
+            
+            for await (const chunk of streamAsyncIterator(response.body)) {
+                var strChunk = String.fromCharCode.apply(null, chunk);
+                responseText += strChunk;
+                messageElement.textContent = responseText;
+            }
+        }
+
+        async function* streamAsyncIterator(stream) {
+            const reader = stream.getReader();
+            try {
+                while (true) {
+                    const {done, value} = await reader.read();
+                    if (done) return;
+                    yield value;
+                }
+            }
+            finally {
+                reader.releaseLock();
+            }
+        }
+    </script>
+</html>
