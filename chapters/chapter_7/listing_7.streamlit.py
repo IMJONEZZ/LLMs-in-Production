@@ -34,8 +34,10 @@ if user_input := st.chat_input("Your question here"):
         full_response = ""
 
         # Format prompt adding chat history for additional context
-        prompt = "You are an assistant who helps the user. " \
+        prompt = (
+            "You are an assistant who helps the user. "
             "Answer their questions as accurately as possible. Be concise. "
+        )
         history = [
             f'{ch["role"]}: {ch["content"]}'
             for ch in st.session_state.chat_history
