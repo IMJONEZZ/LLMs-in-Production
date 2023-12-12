@@ -5,7 +5,7 @@ import json
 url = "http://localhost:8000/generate"  # point to your model's API
 
 
-def predict(message, history):
+def generate(message, history):
     history_transformer_format = history + [[message, ""]]
     messages = "".join(
         [
@@ -25,4 +25,4 @@ def predict(message, history):
         yield full_response
 
 
-gr.ChatInterface(predict, theme="soft").queue().launch()
+gr.ChatInterface(generate, theme="soft").queue().launch()

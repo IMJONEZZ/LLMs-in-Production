@@ -7,9 +7,10 @@ faiss-cpu
 # faiss-gpu==1.7.2  # use this one if you dare
 fastapi==0.89.1
 feast==0.31.1
-gradio
+guidance==0.1.5
+gradio  # 4.8.0
 ipykernel==6.15.0
-langchain==0.0.234
+langchain==0.0.234  # 0.0.348
 langkit[all]==0.0.1
 locust==2.17.0
 mlserver==1.3.4
