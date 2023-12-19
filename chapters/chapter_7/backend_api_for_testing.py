@@ -5,14 +5,19 @@ from typing import AsyncGenerator
 from fastapi import FastAPI, Request
 from fastapi.responses import Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+import torch
 import uvicorn
 
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
+    StoppingCriteria,
+    StoppingCriteriaList,
     TextIteratorStreamer,
 )
 from threading import Thread
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 app = FastAPI()
 
@@ -29,9 +34,31 @@ app.add_middleware(
 )
 
 # Load tokenizer, model, and streamer into memory
-tokenizer = AutoTokenizer.from_pretrained("gpt2")
-model = AutoModelForCausalLM.from_pretrained("gpt2")
-streamer = TextIteratorStreamer(tokenizer, skip_prompt=True)
+tokenizer = AutoTokenizer.from_pretrained(
+    "togethercomputer/RedPajama-INCITE-Chat-3B-v1"
+)
+model = AutoModelForCausalLM.from_pretrained(
+    "togethercomputer/RedPajama-INCITE-Chat-3B-v1",
+    torch_dtype=torch.float16,
+)
+model = model.to(device)
+streamer = TextIteratorStreamer(
+    tokenizer, timeout=10, skip_prompt=True, skip_special_tokens=True
+)
+
+
+class StopOnTokens(StoppingCriteria):
+    def __call__(
+        self,
+        input_ids: torch.LongTensor,
+        scores: torch.FloatTensor,
+        **kwargs
+    ) -> bool:
+        stop_ids = [29, 0]
+        for stop_id in stop_ids:
+            if input_ids[0][-1] == stop_id:
+                return True
+        return False
 
 
 async def stream_results() -> AsyncGenerator[bytes, None]:
@@ -51,8 +78,13 @@ async def generate(request: Request) -> Response:
     request_dict = await request.json()
     prompt = request_dict.pop("prompt")
 
-    inputs = tokenizer([prompt], return_tensors="pt")
-    generation_kwargs = dict(inputs, streamer=streamer, max_new_tokens=20)
+    inputs = tokenizer([prompt], return_tensors="pt").to(device)
+    generation_kwargs = dict(
+        inputs,
+        streamer=streamer,
+        max_new_tokens=1024,
+        stopping_criteria=StoppingCriteriaList([StopOnTokens()]),
+    )
 
     # Start a seperate thread to generate results
     thread = Thread(target=model.generate, kwargs=generation_kwargs)

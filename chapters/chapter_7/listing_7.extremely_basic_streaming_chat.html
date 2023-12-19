@@ -4,6 +4,8 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Simple Chat App</title>
+        
+        <!-- Some very simple styling -->
         <style>
             body {
                 font-family: Arial, sans-serif;
@@ -28,13 +30,20 @@
         </style>
     </head>
 
+    <!-- Our body is simple with only three fields:
+        a text input, send button, and container for chat-->
     <body>
-        <input type="text" id="message-input" placeholder="Type your message...">
-        <button onclick="sendMessage()">Send</button>
+        <form onsubmit="return false;"">
+            <input type="text" id="message-input" placeholder="Type your message...">
+            <button onclick="sendMessage()" type="submit">Send</button>
+        </form>
         <div id="chat-container"></div>
     </body>
 
+    <!-- JavaScript to handle communication with LLM and streaming response -->
     <script>
+        // When send button is pushed move text from input to chat box
+        // and send the message to the LLM server
         function sendMessage() {
             var messageInput = document.getElementById('message-input');
             var message = messageInput.value.trim();
@@ -46,6 +55,7 @@
             }
         }
 
+        // Add new messages to the chat box
         function appendMessage(message) {
             var chatContainer = document.getElementById('chat-container');
             var messageElement = document.createElement('div');
@@ -55,6 +65,7 @@
             return messageElement
         }
 
+        // Send prompt to server and stream the response back as tokens are received
         async function sendToServer(message) {
             var payload = {
                 prompt: message
@@ -78,6 +89,8 @@
             }
         }
 
+        // Simple polyfill since StreamResponse still can't be used 
+        // as iterator by most browsers
         async function* streamAsyncIterator(stream) {
             const reader = stream.getReader();
             try {

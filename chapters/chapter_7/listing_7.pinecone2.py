@@ -13,7 +13,7 @@ PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 
 
 # Set up vectorstore
-index_name = "Pincecone-LLM-Example"
+index_name = "pincecone-llm-example"
 index = pinecone.Index(index_name)
 embedder = OpenAIEmbeddings(
     model="text-embedding-ada-002", openai_api_key=OPENAI_API_KEY
@@ -40,7 +40,6 @@ qa = RetrievalQA.from_chain_type(
     llm=llm, chain_type="stuff", retriever=vectorstore.as_retriever()
 )
 qa.run(query)
-
 
 # Include wikipedia sources
 qa_with_sources = RetrievalQAWithSourcesChain.from_chain_type(
