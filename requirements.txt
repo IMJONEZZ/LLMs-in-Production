@@ -2,6 +2,7 @@ apache-beam==2.49.0
 black==23.3.0
 # chainlit==0.7.70
 datasets==2.13.0
+duckduckgo-search==4.1.1
 einops==0.6.1
 evaluate==0.4.0
 faiss-cpu
@@ -12,7 +13,8 @@ guidance==0.1.5
 gradio  # 4.8.0
 huggingface_hub==0.20.1
 ipykernel==6.15.0
-langchain==0.0.234  # 0.0.348
+langchain==0.0.234  # 0.0.348  # 0.1.0
+langchain-experimental==0.0.49
 langkit[all]==0.0.1
 llama-cpp-python==0.2.26
 locust==2.17.0
@@ -36,3 +38,4 @@ unidecode==1.3.6
 weightwatcher==0.7.1.5
 whylogs==1.1.45.dev6
 xformers==0.0.21
+youtube_search==2.1.2
