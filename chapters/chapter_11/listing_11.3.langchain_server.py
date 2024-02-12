@@ -1,11 +1,13 @@
 import os
-from langchain import OpenAI, PromptTemplate, LLMChain
+from langchain.chains import LLMChain
+from langchain_community.chat_models import ChatOpenAI
+from langchain.prompts import PromptTemplate
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from datasets import load_dataset
 import tiktoken
 
-os.environ["OPENAI_API_KEY"] = "Your Server's API Key"
+os.environ["OPENAI_API_KEY"] = "Your API Key"
 os.environ[
     "OPENAI_API_BASE"
 ] = "http://0.0.0.0:1234/v1"  # Replace with your server's address and port
@@ -13,22 +15,13 @@ os.environ[
     "OPENAI_API_HOST"
 ] = "http://0.0.0.0:1234"  # Replace with your host IP
 
-llm = OpenAI(
-    model_name="text-davinci-003",  # Can be anything
+llm = ChatOpenAI(
+    model_name="gpt-3.5-turbo",  # Can be anything
     temperature=0.25,
-    openai_api_base="http://0.0.0.0:1234/v1",  # Again
+    openai_api_base=os.environ["OPENAI_API_BASE"],  # Again
+    openai_api_key=os.environ["OPENAI_API_KEY"],
     max_tokens=500,
-    top_p=1,
-    model_kwargs=dict(
-        openai_key="your api key",
-        top_k=1,
-    ),
-    presence_penalty=0.0,
     n=1,
-    best_of=1,
-    batch_size=20,
-    logit_bias={},
-    streaming=True,
 )
 
 embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
@@ -76,19 +69,19 @@ formatted_prompt = PromptTemplate(
 chain = LLMChain(llm=llm, prompt=formatted_prompt)
 
 num_tokens = len(
-    tiktoker.encode(f"{prompt_template},\n" + message_history + query)
+    tiktoker.encode(f"{prompt_template},\n" + "\n".join(message_history) + query)
 )
 while num_tokens >= 4000:
     message_history.pop(0)
     num_tokens = len(
-        tiktoker.encode(f"{prompt_template},\n" + message_history + query)
+        tiktoker.encode(f"{prompt_template},\n" + "\n".join(message_history) + query)
     )
 
 res = chain.run(
     {
         "question": query,
         "conversation_history": message_history,
-        "code_snippet": retrieved_example,
+        "code_snippet": "",
     }
 )
 message_history.append(f"User: {query}\nLlama: {res}")
