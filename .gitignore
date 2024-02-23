@@ -172,3 +172,6 @@ ww-img/
 # Chapters
 models/
 chapters/chapter_4/tokenizers/
+
+# JavaScript
+node_modules
