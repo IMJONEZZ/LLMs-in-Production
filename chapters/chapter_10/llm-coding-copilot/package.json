@@ -1,0 +1,37 @@
+{
+  "name": "llm-coding-copilot",
+  "displayName": "llm_coding_copilot",
+  "description": "VSCode extension to add LLM code suggestions inline.",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.86.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:editor.action.inlineSuggest.trigger"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "keybindings": [{
+      "key": "Alt+s",
+      "command": "editor.action.inlineSuggest.trigger",
+      "mac": "Alt+s"
+    }]
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "pretest": "npm run lint",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.86.0",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "18.x",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3",
+    "@vscode/test-cli": "^0.0.4",
+    "@vscode/test-electron": "^2.3.8"
+  }
+}
