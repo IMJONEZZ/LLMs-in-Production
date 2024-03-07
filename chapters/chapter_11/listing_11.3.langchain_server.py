@@ -55,7 +55,7 @@ vectorDB = load_dataset(
 # If you haven't created a faiss or elasticsearch or usearch index, do it
 try:
     vectorDB.load_faiss_index("embeddings", "my_index.faiss")
-except:
+except Exception as e:
     print(
         "No faiss index, run vectorDB.add_faiss_index(column='embeddings') and vectorDB.save_faiss_index('embeddings', 'my_index.faiss')"
     )
