@@ -1,11 +1,10 @@
-#Packages needed: llama-recipies fastcore --extra-index-url https://download.pytorch.org/whl/test/cu121
+# Packages needed: llama-recipies fastcore --extra-index-url https://download.pytorch.org/whl/test/cu121
 # General
-import torch, os, gc, time, safetensors, copy, math, types
+import torch, os, time, safetensors, copy, math, types
 import functools
 import torch.optim as optim
 from torch.optim.lr_scheduler import LambdaLR
 from transformers.optimization import get_linear_schedule_with_warmup
-import bitsandbytes as bnb
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from contextlib import nullcontext
@@ -14,7 +13,7 @@ from tqdm.auto import tqdm
 from typing import List, Dict
 
 # Argument parsing
-from fastcore.script import call_parse, bool_arg, Param
+from fastcore.script import bool_arg
 
 try:
     from hqq.core.quantize import HQQLinear, HQQBackend, BaseQuantizeConfig
@@ -28,9 +27,19 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader, DistributedSampler
 
 # FSDP
-from torch.distributed.fsdp import MixedPrecision, FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp.wrap import _or_policy, lambda_auto_wrap_policy, transformer_auto_wrap_policy
-from torch.distributed.fsdp.api import BackwardPrefetch, CPUOffload, ShardingStrategy
+from torch.distributed.fsdp import (
+    MixedPrecision,
+    FullyShardedDataParallel as FSDP,
+)
+from torch.distributed.fsdp.wrap import (
+    _or_policy,
+    lambda_auto_wrap_policy,
+    transformer_auto_wrap_policy,
+)
+from torch.distributed.fsdp.api import (
+    CPUOffload,
+    ShardingStrategy,
+)
 from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
 from torch.distributed.fsdp import StateDictType, FullStateDictConfig
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
@@ -43,19 +52,26 @@ from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
 # Model loading
 from bitsandbytes.nn import Linear4bit, Params4bit
 from accelerate import init_empty_weights
-from accelerate.utils import set_seed
 from peft import get_peft_model, LoraConfig, TaskType
-from transformers.utils import hub, SAFE_WEIGHTS_NAME, SAFE_WEIGHTS_INDEX_NAME
+from transformers.utils import (
+    hub,
+    SAFE_WEIGHTS_NAME,
+    SAFE_WEIGHTS_INDEX_NAME,
+)
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from transformers.tokenization_utils_fast import PreTrainedTokenizerFast
 from fastcore.parallel import parallel
 
-#PEFT
+# PEFT
 from peft.tuners import PrefixEncoder, PromptEmbedding, PromptEncoder
 
 # For different model types, we'll want to import the right class for the
 # check_fn in activation checkpointing (LlamaDecoderLayer for llama models for example)
-from transformers.models.llama.modeling_llama import LlamaDecoderLayer, LLAMA_ATTENTION_CLASSES, LlamaMLP
+from transformers.models.llama.modeling_llama import (
+    LlamaDecoderLayer,
+    LLAMA_ATTENTION_CLASSES,
+    LlamaMLP,
+)
 
 # To get rid of tokenizers warnings for now
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -66,41 +82,76 @@ try:
 except ImportError:
     pass
 
+
 class Logger:
-    def __init__(self, args, log_to="stdout", project_name="fsdp_qlora", entity=None, group=None, name=None, rank=0):
+    def __init__(
+        self,
+        args,
+        log_to="stdout",
+        project_name="fsdp_qlora",
+        entity=None,
+        group=None,
+        name=None,
+        rank=0,
+    ):
         # self.log_every_n_steps = log_every_n_steps TODO: add this back as an option
         self.log_to = log_to
-        if self.log_to == "wandb" and rank==0:
+        if self.log_to == "wandb" and rank == 0:
             import wandb
-            wandb.init(project=project_name, entity=entity, group=group, name=name, config=args)
 
-    def log(self, d:Dict, rank:int):
-        if rank != 0: return
+            wandb.init(
+                project=project_name,
+                entity=entity,
+                group=group,
+                name=name,
+                config=args,
+            )
+
+    def log(self, d: Dict, rank: int):
+        if rank != 0:
+            return
         if self.log_to == "tqdm":
-            for k,v in d.items():
-                tqdm.write(f'{k}: {v}')
+            for k, v in d.items():
+                tqdm.write(f"{k}: {v}")
         elif self.log_to == "wandb":
             wandb.log(d)
         elif self.log_to == "stdout":
-            for k,v in d.items():
-                print(f'{k}: {v}')
+            for k, v in d.items():
+                print(f"{k}: {v}")
 
     def finish(self, rank=0):
-        if self.log_to == "wandb" and rank==0: wandb.finish()
+        if self.log_to == "wandb" and rank == 0:
+            wandb.finish()
 
 
-def update_progress_bar(progress_bar:tqdm, epoch:int, log_loss:float, log_lr:float, rank:int):
+def update_progress_bar(
+    progress_bar: tqdm,
+    epoch: int,
+    log_loss: float,
+    log_lr: float,
+    rank: int,
+):
     """Updates the progress bar with the current epoch, loss, and learning rate"""
     if rank == 0:
-        if log_lr >=0:
-            progress_bar.set_description(f"Epoch {epoch}, Loss {log_loss:.3f}, LR {log_lr:.2e}", refresh=True)
+        if log_lr >= 0:
+            progress_bar.set_description(
+                f"Epoch {epoch}, Loss {log_loss:.3f}, LR {log_lr:.2e}",
+                refresh=True,
+            )
         else:
-            progress_bar.set_description(f"Epoch {epoch}, Loss {log_loss:.3f}", refresh=True)
+            progress_bar.set_description(
+                f"Epoch {epoch}, Loss {log_loss:.3f}", refresh=True
+            )
 
 
 # Utilities related to model loading
-def replace_linear(model:nn.Module, linear_replacement:nn.Module, quant_config:dict|None=None,
-                   skip_modules:List[str]=["lm_head"], **kwargs):
+def replace_linear(
+    model: nn.Module,
+    linear_replacement: nn.Module,
+    quant_config: dict | None = None,
+    skip_modules: List[str] = ["lm_head"],
+    **kwargs,
+):
     """
     Replace linear modules with a new Linear module.
     Parameters:
@@ -114,7 +165,13 @@ def replace_linear(model:nn.Module, linear_replacement:nn.Module, quant_config:d
     """
     for name, module in model.named_children():
         if len(list(module.children())) > 0:
-            replace_linear(module, linear_replacement, quant_config, skip_modules, **kwargs)
+            replace_linear(
+                module,
+                linear_replacement,
+                quant_config,
+                skip_modules,
+                **kwargs,
+            )
 
         if isinstance(module, torch.nn.Linear) and name not in skip_modules:
             if issubclass(linear_replacement, Linear4bit):
@@ -122,43 +179,66 @@ def replace_linear(model:nn.Module, linear_replacement:nn.Module, quant_config:d
                     module.in_features,
                     module.out_features,
                     module.bias is not None,
-                    **kwargs
+                    **kwargs,
                 )
             elif issubclass(linear_replacement, HQQLinear):
-                model._modules[name] = linear_replacement(module, quant_config, **kwargs)
+                model._modules[name] = linear_replacement(
+                    module, quant_config, **kwargs
+                )
             else:
-                raise ValueError(f"Unsupported linear replacement: {type(linear_replacement)}")
+                raise ValueError(
+                    f"Unsupported linear replacement: {type(linear_replacement)}"
+                )
     return model
 
 
-def setup_quantized_meta_for_peft(model:nn.Module):
+def setup_quantized_meta_for_peft(model: nn.Module):
     """Replaces `quant_state.to` with a dummy function to prevent PEFT from moving `quant_state` to meta device"""
+
     def temp_to_method(self, *args, **kwargs):
         return self
+
     for param in model.parameters():
         if isinstance(param, Params4bit):
             param.quant_state._orig_to = param.quant_state.to
-            param.quant_state.to = types.MethodType(temp_to_method, param.quant_state)
+            param.quant_state.to = types.MethodType(
+                temp_to_method, param.quant_state
+            )
 
-def setup_quantized_peft_meta_for_training(model:nn.Module):
+
+def setup_quantized_peft_meta_for_training(model: nn.Module):
     """Replaces dummy `quant_state.to` method with the original function to allow training to continue"""
     for param in model.parameters():
-        if isinstance(param, Params4bit) and hasattr(param.quant_state, '_orig_to'):
+        if isinstance(param, Params4bit) and hasattr(
+            param.quant_state, "_orig_to"
+        ):
             param.quant_state.to = param.quant_state._orig_to
             param.quant_state._orig_to = None
 
-def load_and_quantize(module:nn.Module, name:str, value:Tensor, device:torch.device=None, dtype:torch.dtype=None,
-                      skip_names:list[str]=[], is_meta_rank:bool=False, low_memory:bool=True, verbose:bool=False, quant_method:str='bnb'):
+
+def load_and_quantize(
+    module: nn.Module,
+    name: str,
+    value: Tensor,
+    device: torch.device = None,
+    dtype: torch.dtype = None,
+    skip_names: list[str] = [],
+    is_meta_rank: bool = False,
+    low_memory: bool = True,
+    verbose: bool = False,
+    quant_method: str = "bnb",
+):
     """
     Loads `value` tensor into submodule of `module`, optionally skipping `skip_names` and converting to `dtype`.
 
     Quantizes `Params4bit` on `device` then places on "cpu" if low_memory=True or "meta" if is_meta_rank=True.
     """
+
     def place_on_device(value):
         if is_meta_rank:
-            device = 'meta'
+            device = "meta"
         elif low_memory:
-            device = 'cpu'
+            device = "cpu"
         return value.to(device=device, dtype=dtype)
 
     if any([skip_name in name for skip_name in skip_names]):
@@ -166,7 +246,7 @@ def load_and_quantize(module:nn.Module, name:str, value:Tensor, device:torch.dev
             print(f"Skipping {name} because it is in skip_names")
         return
 
-    module_key, _, value_key = name.rpartition('.')
+    module_key, _, value_key = name.rpartition(".")
     try:
         submodule = module.get_submodule(module_key)
     except AttributeError as e:
@@ -174,7 +254,7 @@ def load_and_quantize(module:nn.Module, name:str, value:Tensor, device:torch.dev
         return
 
     try:
-        if quant_method=='bnb':
+        if quant_method == "bnb":
             param = submodule.get_parameter(value_key)
             if isinstance(param, Params4bit):
                 # With `sync_module_states=True`, a meta device Params4bit needs to be the same
@@ -182,26 +262,43 @@ def load_and_quantize(module:nn.Module, name:str, value:Tensor, device:torch.dev
                 # FSDP only syncs parameters and buffers, so the quant_state isn't copied. This
                 # workaround quantizes Params4bit to initialize quant_state on all ranks, then
                 # replaces Params4bit's data with a meta tensor to free memory on non-rank 0.
-                value = type(param)(value.to(device=device, dtype=dtype).data, **param.__dict__).cuda(device)
+                value = type(param)(
+                    value.to(device=device, dtype=dtype).data,
+                    **param.__dict__,
+                ).cuda(device)
                 if is_meta_rank:
-                    value = type(param)(value.data.to("meta"), **value.__dict__)
+                    value = type(param)(
+                        value.data.to("meta"), **value.__dict__
+                    )
                 elif low_memory:
-                    value = type(param)(value.data.to("cpu"), **value.__dict__)
+                    value = type(param)(
+                        value.data.to("cpu"), **value.__dict__
+                    )
             else:
                 value = type(param)(place_on_device(value).data)
-        elif quant_method=='hqq':
+        elif quant_method == "hqq":
             if isinstance(submodule, HQQLinear):
                 if value_key == "weight":
                     # Like `Params4bit`, this workaround quantizes `HQQLinear`` per device so the quantization
                     # meta dictionary is created on all ranks, before converting to meta on non-rank 0.
                     submodule.linear_layer.to_empty(device=device)
-                    submodule.linear_layer.weight.data.copy_(value.to(device=device, dtype=dtype))
+                    submodule.linear_layer.weight.data.copy_(
+                        value.to(device=device, dtype=dtype)
+                    )
                     submodule.initialize()
 
                     if is_meta_rank:
-                        setattr(submodule, "W_q", nn.Parameter(submodule.W_q.to("meta")))
+                        setattr(
+                            submodule,
+                            "W_q",
+                            nn.Parameter(submodule.W_q.to("meta")),
+                        )
                     elif low_memory:
-                        setattr(submodule, "W_q", nn.Parameter(submodule.W_q.to("cpu")))
+                        setattr(
+                            submodule,
+                            "W_q",
+                            nn.Parameter(submodule.W_q.to("cpu")),
+                        )
                     submodule.in_gpu = False
 
                 if value_key == "bias":
@@ -233,6 +330,7 @@ PROMPT_DICT = {
     ),
 }
 
+
 # Dataset class
 class InstructionDataset(Dataset):
     def __init__(self, dataset, tokenizer, style="alpaca"):
@@ -252,8 +350,8 @@ class InstructionDataset(Dataset):
             prompt_template = "###Context:\n{context}\n###Question:\n{question}\n###Answer:\n"
             sample = self.dataset[index]
             prompt = prompt_template.format_map(sample)
-            example = prompt + sample['answer']
-        else: # Alpaca
+            example = prompt + sample["answer"]
+        else:  # Alpaca
             ann = self.dataset[index]
             if ann.get("input", "") == "":
                 prompt = PROMPT_DICT["prompt_no_input"].format_map(ann)
@@ -266,9 +364,7 @@ class InstructionDataset(Dataset):
         )
         example = self.tokenizer.encode(example)
         example.append(self.tokenizer.eos_token_id)
-        example = torch.tensor(
-            example, dtype=torch.int64
-        )
+        example = torch.tensor(example, dtype=torch.int64)
         labels = copy.deepcopy(example)
         labels[: len(prompt)] = -1
         example_mask = example.ge(0)
@@ -279,134 +375,207 @@ class InstructionDataset(Dataset):
         return {
             "input_ids": example.tolist(),
             "labels": labels.tolist(),
-            "attention_mask":example_mask.tolist(),
+            "attention_mask": example_mask.tolist(),
         }
 
+
 # And to get the dataloader
-def get_dataloader(tokenizer:PreTrainedTokenizerFast, args:Dict):
+def get_dataloader(tokenizer: PreTrainedTokenizerFast, args: Dict):
     """Creates a dataset and appropriate dataloader with distributed sampler."""
     # Importing here rather than at the start to avoid multiprocessing issues
     from datasets import Dataset, load_dataset
 
     # Load the source dataset
     if args["dataset"] == "alpaca":
-        dataset = load_dataset("yahma/alpaca-cleaned")['train']
+        dataset = load_dataset("yahma/alpaca-cleaned")["train"]
     elif args["dataset"] == "alpaca_sample":
         dataset = load_dataset("yahma/alpaca-cleaned", split="train[:512]")
     elif args["dataset"] == "dummy":
-        dataset = Dataset.from_dict({
-            'instruction': ["instruction"]*512,
-            'input': ["input"]*512,
-            'output': ["output"*10000]*512} # A long output to test memory usage (gets truncated)
+        dataset = Dataset.from_dict(
+            {
+                "instruction": ["instruction"] * 512,
+                "input": ["input"] * 512,
+                "output": ["output" * 10000] * 512,
+            }  # A long output to test memory usage (gets truncated)
         )
     elif args["dataset"] == "guanaco":
-        dataset = load_dataset("timdettmers/openassistant-guanaco", split="train")
+        dataset = load_dataset(
+            "timdettmers/openassistant-guanaco", split="train"
+        )
     elif args["dataset"] == "sql":
-        dataset = load_dataset("knowrohit07/know_sql")['validation']
+        dataset = load_dataset("knowrohit07/know_sql")["validation"]
         dataset = dataset.shuffle(seed=args["seed"])
-        dataset = dataset.select(range(1000,len(dataset)))
+        dataset = dataset.select(range(1000, len(dataset)))
 
     # truncate dataset so it's evenly divisible by grad_accumulation_steps
-    dataset = dataset.select(range(0, len(dataset)-len(dataset)%(args["batch_size"]*args["gradient_accumulation_steps"])))
+    dataset = dataset.select(
+        range(
+            0,
+            len(dataset)
+            - len(dataset)
+            % (args["batch_size"] * args["gradient_accumulation_steps"]),
+        )
+    )
 
     # # Create the InstructionDataset
     if args["dataset"] == "guanaco":
         dataset = InstructionDataset(dataset, tokenizer, style="guanaco")
     elif args["dataset"] == "sql":
         dataset = InstructionDataset(dataset, tokenizer, style="qna")
-    else: # (w/ alpaca prompt formatting)
+    else:  # (w/ alpaca prompt formatting)
         dataset = InstructionDataset(dataset, tokenizer, style="alpaca")
 
     # Collate function
     def collate_fn(batch, with_attention_mask=False):
         # To list of tensors
-        input_ids = [torch.tensor(item['input_ids']) for item in batch]
-        attention_masks = [torch.tensor(item['attention_mask']) for item in batch]
-        labels = [torch.tensor(item['labels']) for item in batch]
+        input_ids = [torch.tensor(item["input_ids"]) for item in batch]
+        attention_masks = [
+            torch.tensor(item["attention_mask"]) for item in batch
+        ]
+        labels = [torch.tensor(item["labels"]) for item in batch]
         # Pad + truncate
-        input_ids = pad_sequence(input_ids, batch_first=True, padding_value=tokenizer.pad_token_id)[:, :args["context_length"]]
+        input_ids = pad_sequence(
+            input_ids,
+            batch_first=True,
+            padding_value=tokenizer.pad_token_id,
+        )[:, : args["context_length"]]
         if with_attention_mask:
-            attention_masks = pad_sequence(attention_masks, batch_first=True, padding_value=0)[:, :args["context_length"]]
+            attention_masks = pad_sequence(
+                attention_masks, batch_first=True, padding_value=0
+            )[:, : args["context_length"]]
         else:
             attention_masks = None
-        labels = pad_sequence(labels, batch_first=True, padding_value=-100)[:, :args["context_length"]]
+        labels = pad_sequence(labels, batch_first=True, padding_value=-100)[
+            :, : args["context_length"]
+        ]
         # Return dict
-        return {'input_ids': input_ids, 'attention_mask': attention_masks, 'labels': labels}
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_masks,
+            "labels": labels,
+        }
 
     # For distributed training, use DistributedSampler
     sampler = DistributedSampler(dataset, seed=args["seed"])
 
     # Use the custom collate function in DataLoader
-    dataloader = DataLoader(dataset, batch_size=args["batch_size"], collate_fn=collate_fn, sampler=sampler)
+    dataloader = DataLoader(
+        dataset,
+        batch_size=args["batch_size"],
+        collate_fn=collate_fn,
+        sampler=sampler,
+    )
 
     return dataloader
 
 
 # LR scheduler.
 def _get_cosine_one_cycle_lr_lambda(
-    current_step: int, *, num_warmup_steps: int, num_training_steps: int, min_lr_fraction = 0.1,
+    current_step: int,
+    *,
+    num_warmup_steps: int,
+    num_training_steps: int,
+    min_lr_fraction=0.1,
 ):
     if current_step < num_warmup_steps:
         return float(current_step) / float(max(1, num_warmup_steps))
-    scale_term = (1 - min_lr_fraction)
-    progress = float(current_step - num_warmup_steps) / float(max(1, num_training_steps - num_warmup_steps))
-    return (math.cos(math.pi * progress)+1) * 0.5 * scale_term + min_lr_fraction
+    scale_term = 1 - min_lr_fraction
+    progress = float(current_step - num_warmup_steps) / float(
+        max(1, num_training_steps - num_warmup_steps)
+    )
+    return (
+        math.cos(math.pi * progress) + 1
+    ) * 0.5 * scale_term + min_lr_fraction
 
-def get_cosine_one_cycle_scheduler(optimizer:optim.Optimizer, num_warmup_steps:int, num_training_steps:int, min_lr_fraction:float=0.1):
+
+def get_cosine_one_cycle_scheduler(
+    optimizer: optim.Optimizer,
+    num_warmup_steps: int,
+    num_training_steps: int,
+    min_lr_fraction: float = 0.1,
+):
     "A more general cosine scheduler with to control the minimum learning rate"
     lr_lambda = functools.partial(
         _get_cosine_one_cycle_lr_lambda,
         num_warmup_steps=num_warmup_steps,
         num_training_steps=num_training_steps,
-        min_lr_fraction=min_lr_fraction
+        min_lr_fraction=min_lr_fraction,
     )
     return LambdaLR(optimizer, lr_lambda, last_epoch=-1)
 
-def get_lr_scheduler(optimizer:optim.Optimizer, dataloader:DataLoader, gradient_accumulation_steps:int, args:Dict):
+
+def get_lr_scheduler(
+    optimizer: optim.Optimizer,
+    dataloader: DataLoader,
+    gradient_accumulation_steps: int,
+    args: Dict,
+):
     """Returns linear, cosine, or constant learning rate scheduler"""
-    num_training_steps = args['num_epochs'] * len(dataloader) // gradient_accumulation_steps
+    num_training_steps = (
+        args["num_epochs"] * len(dataloader) // gradient_accumulation_steps
+    )
     num_warmup_steps = int(num_training_steps * 0.1)
-    if args['lr_scheduler'] == "linear":
-        lr_scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps)
-    elif args['lr_scheduler'] == "cosine":
-        lr_scheduler = get_cosine_one_cycle_scheduler(optimizer, num_warmup_steps, num_training_steps, min_lr_fraction=0.1)
-    elif args['lr_scheduler'] == "constant":
+    if args["lr_scheduler"] == "linear":
+        lr_scheduler = get_linear_schedule_with_warmup(
+            optimizer, num_warmup_steps, num_training_steps
+        )
+    elif args["lr_scheduler"] == "cosine":
+        lr_scheduler = get_cosine_one_cycle_scheduler(
+            optimizer,
+            num_warmup_steps,
+            num_training_steps,
+            min_lr_fraction=0.1,
+        )
+    elif args["lr_scheduler"] == "constant":
         lr_scheduler = None
     else:
-        raise NotImplementedError(f"{args['lr_scheduler']} LR scheduler not implemented yet")
+        raise NotImplementedError(
+            f"{args['lr_scheduler']} LR scheduler not implemented yet"
+        )
     return lr_scheduler, num_training_steps
 
 
 # Optimizer
-def get_optimizer(model:nn.Module, args:Dict):
+def get_optimizer(model: nn.Module, args: Dict):
     """Returns an optimizer. We can add more options here if needed."""
     if args["optimizer"] == "adam":
-        return optim.Adam(model.parameters(), lr=args['lr'])
+        return optim.Adam(model.parameters(), lr=args["lr"])
     elif args["optimizer"] == "sgd":
-        return optim.SGD(model.parameters(), lr=args['lr'])
+        return optim.SGD(model.parameters(), lr=args["lr"])
     elif args["optimizer"] == "adadelta":
-        return optim.Adadelta(model.parameters(), lr=args['lr'])
+        return optim.Adadelta(model.parameters(), lr=args["lr"])
     elif args["optimizer"] == "adamw":
-        return torch.optim.AdamW(model.parameters(), lr=args['lr'], betas=(0.9,0.95),
-                                 eps=1e-5, weight_decay=args['wd'])
+        return torch.optim.AdamW(
+            model.parameters(),
+            lr=args["lr"],
+            betas=(0.9, 0.95),
+            eps=1e-5,
+            weight_decay=args["wd"],
+        )
     else:
         raise ValueError("Invalid optimizer")
 
 
 # Wrap the model using LoRA policy from llama-recipes or custom policy:
 # This checks for lora layers (has weight and requires_grad)
-def get_wrapping_policy(custom_policy:bool=False):
+def get_wrapping_policy(custom_policy: bool = False):
     if custom_policy:
+
         def lambda_policy_fn(module):
             # LORA trainable layers.
-            return (isinstance(module, nn.Sequential) and all(m.weight.requires_grad for m in module))
+            return isinstance(module, nn.Sequential) and all(
+                m.weight.requires_grad for m in module
+            )
+
     else:
+
         def lambda_policy_fn(module):
             return (
                 len(list(module.named_children())) == 0
                 and getattr(module, "weight", None) is not None
                 and module.weight.requires_grad
             )
+
     def self_attn_policy_fn(module):
         # Check module name is self_attn.
         return isinstance(module, tuple(LLAMA_ATTENTION_CLASSES.values()))
@@ -415,9 +584,15 @@ def get_wrapping_policy(custom_policy:bool=False):
         # Check module name is self_attn.
         return isinstance(module, LlamaMLP)
 
-    lambda_policy = functools.partial(lambda_auto_wrap_policy, lambda_fn=lambda_policy_fn)
-    self_attn_policy = functools.partial(lambda_auto_wrap_policy, lambda_fn=self_attn_policy_fn)
-    mlp_policy = functools.partial(lambda_auto_wrap_policy, lambda_fn=mlp_policy_fn)
+    lambda_policy = functools.partial(
+        lambda_auto_wrap_policy, lambda_fn=lambda_policy_fn
+    )
+    self_attn_policy = functools.partial(
+        lambda_auto_wrap_policy, lambda_fn=self_attn_policy_fn
+    )
+    mlp_policy = functools.partial(
+        lambda_auto_wrap_policy, lambda_fn=mlp_policy_fn
+    )
     transformer_layer_name = LlamaDecoderLayer
     transformer_wrap_policy = functools.partial(
         transformer_auto_wrap_policy,
@@ -428,7 +603,7 @@ def get_wrapping_policy(custom_policy:bool=False):
             transformer_layer_name,
         ),
     )
-    policies=[lambda_policy, transformer_wrap_policy]
+    policies = [lambda_policy, transformer_wrap_policy]
     if custom_policy:
         policies.extend([self_attn_policy, mlp_policy])
     return functools.partial(_or_policy, policies=policies)
@@ -439,10 +614,24 @@ class LORA(nn.Module):
     def __init__(self, base_layer, lora_rank, lora_alpha, lora_dropout):
         super().__init__()
         self.base_layer = base_layer
-        dtype = getattr(base_layer, "compute_dtype", next(base_layer.parameters()).dtype)
+        dtype = getattr(
+            base_layer, "compute_dtype", next(base_layer.parameters()).dtype
+        )
         device = next(base_layer.parameters()).device
-        lora_A = nn.Linear(base_layer.in_features, lora_rank, bias=False, device=device, dtype=dtype)
-        lora_B = nn.Linear(lora_rank, base_layer.out_features, bias=False, device=device, dtype=dtype)
+        lora_A = nn.Linear(
+            base_layer.in_features,
+            lora_rank,
+            bias=False,
+            device=device,
+            dtype=dtype,
+        )
+        lora_B = nn.Linear(
+            lora_rank,
+            base_layer.out_features,
+            bias=False,
+            device=device,
+            dtype=dtype,
+        )
         lora_B.weight.data.zero_()
 
         self.lora_AB = nn.Sequential(lora_A, lora_B)
@@ -452,7 +641,6 @@ class LORA(nn.Module):
         self.scaling = self.lora_alpha / lora_rank
 
     def forward(self, x: torch.Tensor, *args, **kwargs) -> torch.Tensor:
-
         result = self.base_layer(x, *args, **kwargs)
         # As per Tim Dettmers, for 4bit, we need to defensively clone here.
         # The reason is that in some cases, an error can occur that backprop
@@ -476,17 +664,19 @@ class LORA(nn.Module):
         return result
 
 
-
 # Main function, run on each process
-def fsdp_main(local_rank:int, world_size:int, args:Dict):
-    print_func = tqdm.write if args["log_to"] == 'tqdm' else print
+def fsdp_main(local_rank: int, world_size: int, args: Dict):
+    print_func = tqdm.write if args["log_to"] == "tqdm" else print
 
     # Setup and initialize the process group
-    os.environ['MASTER_ADDR'] = args["master_addr"]
-    os.environ['MASTER_PORT'] = args["master_port"]
-    if 'SLURM_PROCID' in os.environ:
+    os.environ["MASTER_ADDR"] = args["master_addr"]
+    os.environ["MASTER_PORT"] = args["master_port"]
+    if "SLURM_PROCID" in os.environ:
         # assumes same number of GPUs per node.
-        rank = int(os.environ['SLURM_PROCID']) * torch.cuda.device_count() + local_rank
+        rank = (
+            int(os.environ["SLURM_PROCID"]) * torch.cuda.device_count()
+            + local_rank
+        )
     else:
         rank = local_rank
 
@@ -494,8 +684,15 @@ def fsdp_main(local_rank:int, world_size:int, args:Dict):
     torch.cuda.set_device(local_rank)
 
     # Start logging
-    logger = Logger(args, log_to=args["log_to"], project_name=args["project_name"],
-                    entity=args["entity"], group=args["group"], name=args["name"], rank=rank)
+    logger = Logger(
+        args,
+        log_to=args["log_to"],
+        project_name=args["project_name"],
+        entity=args["entity"],
+        group=args["group"],
+        name=args["name"],
+        rank=rank,
+    )
 
     # Timing stuff
     init_start_event = torch.cuda.Event(enable_timing=True)
@@ -514,29 +711,41 @@ def fsdp_main(local_rank:int, world_size:int, args:Dict):
         torch_dtype, compute_dtype = torch.float32, torch.float16
     elif args["precision"] == "fp16_autocast":
         compute_dtype, torch_dtype = torch.float16, torch.float32
-        mp_policy = MixedPrecision(param_dtype=torch.float32, reduce_dtype=torch.float32, buffer_dtype=torch.float32)
+        mp_policy = MixedPrecision(
+            param_dtype=torch.float32,
+            reduce_dtype=torch.float32,
+            buffer_dtype=torch.float32,
+        )
     elif args["precision"] == "bf16_autocast":
         compute_dtype, torch_dtype = torch.bfloat16, torch.float32
-        mp_policy = MixedPrecision(param_dtype=torch.float32, reduce_dtype=torch.float32, buffer_dtype=torch.float32)
+        mp_policy = MixedPrecision(
+            param_dtype=torch.float32,
+            reduce_dtype=torch.float32,
+            buffer_dtype=torch.float32,
+        )
     elif args["precision"] == "bf16_buffers_autocast":
         compute_dtype, torch_dtype = torch.bfloat16, torch.bfloat16
-        mp_policy = MixedPrecision(param_dtype=torch.bfloat16, reduce_dtype=torch.bfloat16, buffer_dtype=torch.float32)
-        load_param_skip_names = ['inv_freq']
+        mp_policy = MixedPrecision(
+            param_dtype=torch.bfloat16,
+            reduce_dtype=torch.bfloat16,
+            buffer_dtype=torch.float32,
+        )
+        load_param_skip_names = ["inv_freq"]
     else:
         raise ValueError("Invalid precision")
 
-
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(args["model_name"])
-    tokenizer.pad_token_id = tokenizer.eos_token_id # TODO check if it exists first
+    tokenizer.pad_token_id = (
+        tokenizer.eos_token_id
+    )  # TODO check if it exists first
 
     # Set up dataloader
     dataloader = get_dataloader(tokenizer, args)
 
-
     # Create model
     cfg = None
-    attn_impl = "sdpa" # torch 2.2 sdpa uses flash attn 2
+    attn_impl = "sdpa"  # torch 2.2 sdpa uses flash attn 2
     print("Creating model", rank)
     if args["train_type"] in ["full", "lora", "custom_lora"]:
         if (args["low_memory"] and rank == 0) or (not args["low_memory"]):
@@ -544,19 +753,27 @@ def fsdp_main(local_rank:int, world_size:int, args:Dict):
                 args["model_name"],
                 use_cache=False,
                 torch_dtype=torch_dtype,
-                _attn_implementation=attn_impl
+                _attn_implementation=attn_impl,
             )
             dtype = torch_dtype if args["precision"] == "bf16" else None
-            model.to(dtype=dtype, device="cpu" if args["low_memory"] else rank)
+            model.to(
+                dtype=dtype, device="cpu" if args["low_memory"] else rank
+            )
         else:
             cfg = AutoConfig.from_pretrained(args["model_name"])
             cfg.use_cache = False
             cfg._attn_implementation = attn_impl
             with init_empty_weights():
-                model = AutoModelForCausalLM.from_config(cfg, torch_dtype=torch_dtype)
+                model = AutoModelForCausalLM.from_config(
+                    cfg, torch_dtype=torch_dtype
+                )
             if args["precision"] == "bf16":
                 model.to(torch_dtype)
-    elif args["train_type"] in ["qlora", "custom_qlora", "hqq_lora"]: # Our custom loading
+    elif args["train_type"] in [
+        "qlora",
+        "custom_qlora",
+        "hqq_lora",
+    ]:  # Our custom loading
         cfg = AutoConfig.from_pretrained(args["model_name"])
         cfg.use_cache = False
         cfg._attn_implementation = attn_impl
@@ -566,25 +783,49 @@ def fsdp_main(local_rank:int, world_size:int, args:Dict):
             model = AutoModelForCausalLM.from_config(cfg)
             if args["train_type"] in ["hqq_lora"]:
                 # TODO: Tune BaseQuantizeConfig.
-                quant_config = BaseQuantizeConfig(nbits=4, group_size=64, quant_zero=True,
-                                                  quant_scale=True, offload_meta=True, view_as_float=True)
-                model.model = replace_linear(model.model, HQQLinear, quant_config, device=rank,
-                                             compute_dtype=compute_dtype, del_orig=True, initialize=False)
+                quant_config = BaseQuantizeConfig(
+                    nbits=4,
+                    group_size=64,
+                    quant_zero=True,
+                    quant_scale=True,
+                    offload_meta=True,
+                    view_as_float=True,
+                )
+                model.model = replace_linear(
+                    model.model,
+                    HQQLinear,
+                    quant_config,
+                    device=rank,
+                    compute_dtype=compute_dtype,
+                    del_orig=True,
+                    initialize=False,
+                )
                 HQQLinear.set_backend(HQQBackend.ATEN_BACKPROP)
             else:
-                model.model = replace_linear(model.model, Linear4bit, compute_dtype=compute_dtype,
-                                             quant_type='nf4', quant_storage=torch_dtype)
+                model.model = replace_linear(
+                    model.model,
+                    Linear4bit,
+                    compute_dtype=compute_dtype,
+                    quant_type="nf4",
+                    quant_storage=torch_dtype,
+                )
         model.is_loaded_in_4bit = True
 
         # Grab the safetensors files that hold the weights
         try:
-            idx = hub.cached_file(args["model_name"], SAFE_WEIGHTS_INDEX_NAME)
-            files, _ = hub.get_checkpoint_shard_files(args["model_name"], idx)
+            idx = hub.cached_file(
+                args["model_name"], SAFE_WEIGHTS_INDEX_NAME
+            )
+            files, _ = hub.get_checkpoint_shard_files(
+                args["model_name"], idx
+            )
         except OSError:
             try:
                 # This means the model doesn't have a model.safetensors.index.json because it is not sharded
                 files = []
-                files.append(hub.cached_file(args["model_name"], SAFE_WEIGHTS_NAME))
+                files.append(
+                    hub.cached_file(args["model_name"], SAFE_WEIGHTS_NAME)
+                )
             except OSError as e:
                 # This means the model probably doesn't have a safetensors file
                 raise e
@@ -596,32 +837,56 @@ def fsdp_main(local_rank:int, world_size:int, args:Dict):
             load_and_quantize(model, name, param, **kwargs)
 
         print("Loading model", rank)
-        param_count = sum((p.numel() for n,p in model.named_parameters()))
-        if rank == 0 and args['verbose']:
+        param_count = sum((p.numel() for n, p in model.named_parameters()))
+        if rank == 0 and args["verbose"]:
             print_func(f"Total model params: {param_count}")
         start = time.time()
         for filename in files:
             weights = safetensors.torch.load_file(filename)
-            quant_method = "hqq" if args["train_type"] in ["hqq_lora"] else "bnb"
-            devprops = torch.cuda.get_device_properties(torch.cuda.current_device())
-            left = int(os.cpu_count()/torch.cuda.device_count())
-            right = int(8 * (devprops.total_memory/1e9/40) * (70/(param_count/1e9)))
+            quant_method = (
+                "hqq" if args["train_type"] in ["hqq_lora"] else "bnb"
+            )
+            devprops = torch.cuda.get_device_properties(
+                torch.cuda.current_device()
+            )
+            left = int(os.cpu_count() / torch.cuda.device_count())
+            right = int(
+                8
+                * (devprops.total_memory / 1e9 / 40)
+                * (70 / (param_count / 1e9))
+            )
             n_workers = min(left, right)
-            if rank == 0 and args['verbose']:
+            if rank == 0 and args["verbose"]:
                 print_func(f"Using n_workers: {n_workers} for loading")
-            parallel(load_and_quantize_parallel, weights.items(), n_workers=n_workers, threadpool=True,
-                     model=model, dtype=torch_dtype, device=local_rank, skip_names=load_param_skip_names,
-                     is_meta_rank=(args["low_memory"] and rank!=0), verbose=args["verbose"], quant_method=quant_method)
+            parallel(
+                load_and_quantize_parallel,
+                weights.items(),
+                n_workers=n_workers,
+                threadpool=True,
+                model=model,
+                dtype=torch_dtype,
+                device=local_rank,
+                skip_names=load_param_skip_names,
+                is_meta_rank=(args["low_memory"] and rank != 0),
+                verbose=args["verbose"],
+                quant_method=quant_method,
+            )
         if rank == 0 and args["verbose"]:
-            print(f"Loaded model weights in {time.time()-start:.3f} seconds")
+            print(
+                f"Loaded model weights in {time.time()-start:.3f} seconds"
+            )
 
-    print("Model created", rank, f"{torch.cuda.memory_allocated(local_rank)/1e9:.3f} GB")
-
+    print(
+        "Model created",
+        rank,
+        f"{torch.cuda.memory_allocated(local_rank)/1e9:.3f} GB",
+    )
 
     # PEFT setup (LoRA and QLoRA)
     if args["train_type"] in ["lora", "qlora"]:
         peft_config = LoraConfig(
-            task_type=TaskType.CAUSAL_LM, inference_mode=False,
+            task_type=TaskType.CAUSAL_LM,
+            inference_mode=False,
             r=args["lora_rank"],
             lora_alpha=args["lora_alpha"],
             lora_dropout=args["lora_dropout"],
@@ -629,40 +894,62 @@ def fsdp_main(local_rank:int, world_size:int, args:Dict):
         )
         # PEFT will move quant_state to meta device, so this method prevents that
         # from happening by replacing quant_state.to with a dummy function
-        if rank!=0 and args["low_memory"]:
+        if rank != 0 and args["low_memory"]:
             setup_quantized_meta_for_peft(model)
 
         model = get_peft_model(model, peft_config)
 
-        if rank==0:
+        if rank == 0:
             model.print_trainable_parameters()
-        elif args['low_memory']:
+        elif args["low_memory"]:
             # And then setup_quantized_peft_meta_for_training sets quant_state.to back to normal
             setup_quantized_peft_meta_for_training(model)
     elif args["train_type"] in ["custom_qlora", "custom_lora", "hqq_lora"]:
         # Create LORA layers.
         for name, _ in model.named_modules():
-            module_key, _, value_key = name.rpartition('.')
-            if value_key in args['lora_target_modules']:
+            module_key, _, value_key = name.rpartition(".")
+            if value_key in args["lora_target_modules"]:
                 m = model.get_submodule(name)
-                qlora_layer = LORA(m, args["lora_rank"], args["lora_alpha"], args["lora_dropout"])
+                qlora_layer = LORA(
+                    m,
+                    args["lora_rank"],
+                    args["lora_alpha"],
+                    args["lora_dropout"],
+                )
                 parent_module = model.get_submodule(module_key)
                 setattr(parent_module, value_key, qlora_layer)
-        for n,p in model.named_parameters():
-            if any([lora_name in n for lora_name in ['lora_AB', 'lora_A', 'lora_B']]):
+        for n, p in model.named_parameters():
+            if any(
+                [
+                    lora_name in n
+                    for lora_name in ["lora_AB", "lora_A", "lora_B"]
+                ]
+            ):
                 p.requires_grad = True
-                if args['verbose']:
+                if args["verbose"]:
                     print("Trainable LORA layer", n)
             else:
                 p.requires_grad = False
 
-        print("LoRA layers added", rank, f"{torch.cuda.memory_allocated(local_rank)/1e9:.3f} GB")
+        print(
+            "LoRA layers added",
+            rank,
+            f"{torch.cuda.memory_allocated(local_rank)/1e9:.3f} GB",
+        )
 
-    logger.log({"memory_after_model_creation": torch.cuda.memory_allocated(local_rank)}, rank)
-
+    logger.log(
+        {
+            "memory_after_model_creation": torch.cuda.memory_allocated(
+                local_rank
+            )
+        },
+        rank,
+    )
 
     # Wrap model with llama-recipies or custom LoRA policy
-    my_auto_wrap_policy = get_wrapping_policy(args["train_type"] in ["custom_qlora", "hqq_lora"])
+    my_auto_wrap_policy = get_wrapping_policy(
+        args["train_type"] in ["custom_qlora", "hqq_lora"]
+    )
 
     print("Wrapping model w/ FSDP", rank)
     if args["sharding_strategy"] == "full_shard":
@@ -684,17 +971,32 @@ def fsdp_main(local_rank:int, world_size:int, args:Dict):
         auto_wrap_policy=my_auto_wrap_policy,
         # backward_prefetch=None, #BackwardPrefetch.BACKWARD_PRE
         use_orig_params=False,
-        cpu_offload=CPUOffload(offload_params=True) if args["use_cpu_offload"] else None,
-        limit_all_gathers=True, # See https://github.com/pytorch/pytorch/issues/91165
+        cpu_offload=CPUOffload(offload_params=True)
+        if args["use_cpu_offload"]
+        else None,
+        limit_all_gathers=True,  # See https://github.com/pytorch/pytorch/issues/91165
         device_id=torch.cuda.current_device(),
         sync_module_states=args["low_memory"],
-        param_init_fn=lambda module: module.to_empty(device=torch.device("cuda"), recurse=False)
-            if (rank!=0 and args["low_memory"]) else None, # TODO note about meta device and why we need this
+        param_init_fn=lambda module: module.to_empty(
+            device=torch.device("cuda"), recurse=False
+        )
+        if (rank != 0 and args["low_memory"])
+        else None,  # TODO note about meta device and why we need this
         mixed_precision=mp_policy,
     )
-    print("Wrapped model", rank, f"{torch.cuda.memory_allocated(local_rank)/1e9:.3f} GB")
-    logger.log({"memory_after_model_wrap": torch.cuda.memory_allocated(local_rank)}, rank)
-
+    print(
+        "Wrapped model",
+        rank,
+        f"{torch.cuda.memory_allocated(local_rank)/1e9:.3f} GB",
+    )
+    logger.log(
+        {
+            "memory_after_model_wrap": torch.cuda.memory_allocated(
+                local_rank
+            )
+        },
+        rank,
+    )
 
     # Synchronize at the start
     dist.barrier()
@@ -703,55 +1005,73 @@ def fsdp_main(local_rank:int, world_size:int, args:Dict):
 
     # Apply activation checkpointing
     if args["use_gradient_checkpointing"]:
-        if args['reentrant_checkpointing']:
+        if args["reentrant_checkpointing"]:
             model.enable_input_require_grads()
         non_reentrant_wrapper = functools.partial(
             checkpoint_wrapper,
-            checkpoint_impl=CheckpointImpl.REENTRANT if args['reentrant_checkpointing'] else CheckpointImpl.NO_REENTRANT,
-
+            checkpoint_impl=CheckpointImpl.REENTRANT
+            if args["reentrant_checkpointing"]
+            else CheckpointImpl.NO_REENTRANT,
         )
 
-        check_fn = lambda submodule: isinstance(submodule, LlamaDecoderLayer)
+        check_fn = lambda submodule: isinstance(
+            submodule, LlamaDecoderLayer
+        )
         print("Applying activation checkpointing", rank)
         apply_activation_checkpointing(
-            model, checkpoint_wrapper_fn=non_reentrant_wrapper, check_fn=check_fn
+            model,
+            checkpoint_wrapper_fn=non_reentrant_wrapper,
+            check_fn=check_fn,
         )
 
     if args["use_activation_cpu_offload"]:
         print("Applying activation offloading", rank)
         model = offload_wrapper(model)
 
-    if rank == 0 and args['verbose']:
+    if rank == 0 and args["verbose"]:
         print("Config:")
         print(cfg)
         print("Model:")
         print(model)
         print("Starting training")
 
-
     # Create the optimizer
     optimizer = get_optimizer(model, args)
 
     # LR scheduler.
-    gradient_accumulation_steps = max(1, args['gradient_accumulation_steps'])
-    lr_scheduler, num_training_steps = get_lr_scheduler(optimizer, dataloader, gradient_accumulation_steps, args)
+    gradient_accumulation_steps = max(
+        1, args["gradient_accumulation_steps"]
+    )
+    lr_scheduler, num_training_steps = get_lr_scheduler(
+        optimizer, dataloader, gradient_accumulation_steps, args
+    )
 
     # Sanity check: see what parameters the optimizer has and which require grad:
-    if rank == 0 and args['verbose']:
+    if rank == 0 and args["verbose"]:
         print("Optimizer params:")
         for group in optimizer.param_groups:
-            for param in group['params']:
-                print(f"Shape: {param.shape}, Requires Grad: {param.requires_grad}, Dtype: {param.dtype}")
-
+            for param in group["params"]:
+                print(
+                    f"Shape: {param.shape}, Requires Grad: {param.requires_grad}, Dtype: {param.dtype}"
+                )
 
     # Autocast for mixed precision with fp16/bf16 compute types with fp32 params
-    if args["precision"] in ["fp16_autocast", "bf16_autocast", "bf16_buffers_autocast"]:
-        autocast = torch.cuda.amp.autocast(enabled=True, dtype=compute_dtype)
+    if args["precision"] in [
+        "fp16_autocast",
+        "bf16_autocast",
+        "bf16_buffers_autocast",
+    ]:
+        autocast = torch.cuda.amp.autocast(
+            enabled=True, dtype=compute_dtype
+        )
     else:
         autocast = nullcontext()
-    scaler = ShardedGradScaler() if args["precision"] == "fp16_autocast" else None
+    scaler = (
+        ShardedGradScaler()
+        if args["precision"] == "fp16_autocast"
+        else None
+    )
     scale_grads = scaler is not None
-
 
     if rank == 0:
         print("Total Training Steps:", num_training_steps)
@@ -760,36 +1080,51 @@ def fsdp_main(local_rank:int, world_size:int, args:Dict):
     log_loss, log_lr = 0.0, -1
     # Reset peak memory to track that
     torch.cuda.reset_peak_memory_stats(local_rank)
-    for epoch in range(args['num_epochs']):
+    for epoch in range(args["num_epochs"]):
         update_progress_bar(progress_bar, epoch, log_loss, log_lr, rank)
         model.train()
         ddp_loss = torch.zeros(2).to(local_rank)
 
         for batch_idx, batch in enumerate(dataloader):
-            accumulate_grads = (batch_idx+1) % gradient_accumulation_steps == 0
+            accumulate_grads = (
+                batch_idx + 1
+            ) % gradient_accumulation_steps == 0
 
             # Prevent gradient syncing until update step if using no_sync option.
             # Documentation states this should only be used on the root FSDP instance
             # We assume this is a one-node setup
-            if args['no_sync'] and not accumulate_grads:
+            if args["no_sync"] and not accumulate_grads:
                 sync_context = model.no_sync()
             else:
                 sync_context = nullcontext()
 
             # Start logging memory (first iter) if requested
-            if batch_idx==0 and rank == 0 and epoch == 0 and args['profile_memory']:
+            if (
+                batch_idx == 0
+                and rank == 0
+                and epoch == 0
+                and args["profile_memory"]
+            ):
                 torch.cuda.memory._record_memory_history()
 
             # Log memory usage
             if batch_idx == 4 and epoch == 0:
-                logger.log({"memory_before_forward": torch.cuda.memory_allocated(local_rank)/1e9}, rank)
+                logger.log(
+                    {
+                        "memory_before_forward": torch.cuda.memory_allocated(
+                            local_rank
+                        )
+                        / 1e9
+                    },
+                    rank,
+                )
 
             # Forward pass
             with sync_context:
                 with autocast:
                     output = model(
-                        batch['input_ids'].to(local_rank),
-                        labels=batch['labels'].to(local_rank),
+                        batch["input_ids"].to(local_rank),
+                        labels=batch["labels"].to(local_rank),
                         attention_mask=None,
                     )
                     loss = output.loss
@@ -799,7 +1134,15 @@ def fsdp_main(local_rank:int, world_size:int, args:Dict):
 
                 # Log memory usage
                 if batch_idx == 4 and epoch == 0:
-                    logger.log({"memory_after_forward": torch.cuda.memory_allocated(local_rank)/1e9}, rank)
+                    logger.log(
+                        {
+                            "memory_after_forward": torch.cuda.memory_allocated(
+                                local_rank
+                            )
+                            / 1e9
+                        },
+                        rank,
+                    )
 
                 # Backward pass
                 if scale_grads:
@@ -808,14 +1151,16 @@ def fsdp_main(local_rank:int, world_size:int, args:Dict):
                     loss.backward()
 
             # Record loss
-            bs = batch['input_ids'].shape[0]
+            bs = batch["input_ids"].shape[0]
             ddp_loss[0] += loss.item() * bs * gradient_accumulation_steps
             ddp_loss[1] += bs
 
             # Step the optimizer (w/ gradient accumulation)
             if accumulate_grads:
-                if args['apply_gradient_clipping'] and (args['grad_norm'] is not None):
-                    model.clip_grad_norm_(args['grad_norm'], norm_type=2.0)
+                if args["apply_gradient_clipping"] and (
+                    args["grad_norm"] is not None
+                ):
+                    model.clip_grad_norm_(args["grad_norm"], norm_type=2.0)
                 if scale_grads:
                     scaler.step(optimizer)
                     scaler.update()
@@ -829,16 +1174,31 @@ def fsdp_main(local_rank:int, world_size:int, args:Dict):
 
             # Log memory usage after backwards
             if batch_idx == 4 and epoch == 0:
-                logger.log({"memory_after_backward": torch.cuda.memory_allocated(local_rank)/1e9}, rank)
+                logger.log(
+                    {
+                        "memory_after_backward": torch.cuda.memory_allocated(
+                            local_rank
+                        )
+                        / 1e9
+                    },
+                    rank,
+                )
 
             # Delete the output so more memory frees up before the next forward pass
             output = None
             loss = None
 
             # Stop logging memory (first iter)
-            if batch_idx==0 and rank == 0 and epoch == 0 and args['profile_memory']:
+            if (
+                batch_idx == 0
+                and rank == 0
+                and epoch == 0
+                and args["profile_memory"]
+            ):
                 torch.cuda.memory._dump_snapshot("memory_snapshot.pickle")
-                torch.cuda.memory._record_memory_history(enabled=None) # Stop recording
+                torch.cuda.memory._record_memory_history(
+                    enabled=None
+                )  # Stop recording
 
             # Log loss every gradient update steps
             if accumulate_grads:
@@ -849,8 +1209,10 @@ def fsdp_main(local_rank:int, world_size:int, args:Dict):
                         log_lr = lr_scheduler.get_last_lr()[0]
                     else:
                         log_lr = args["lr"]
-                    update_progress_bar(progress_bar, epoch, log_loss, log_lr, rank)
-                    if args["log_to"] == 'wandb':
+                    update_progress_bar(
+                        progress_bar, epoch, log_loss, log_lr, rank
+                    )
+                    if args["log_to"] == "wandb":
                         logger.log({"loss": log_loss, "lr": log_lr}, rank)
                 ddp_loss = torch.zeros(2).to(local_rank)
 
@@ -858,8 +1220,11 @@ def fsdp_main(local_rank:int, world_size:int, args:Dict):
         if epoch == 0 and rank == 0:
             peak_memory = torch.cuda.max_memory_allocated(local_rank)
             if args["verbose"]:
-                print_func(f"Peak memory usage (training): {peak_memory/1e9:.2f}GB", rank)
-            if args["log_to"] == 'wandb':
+                print_func(
+                    f"Peak memory usage (training): {peak_memory/1e9:.2f}GB",
+                    rank,
+                )
+            if args["log_to"] == "wandb":
                 logger.log({"memory_peak": peak_memory}, rank)
 
     # Synchronize at the end and record time
@@ -891,88 +1256,134 @@ def fsdp_main(local_rank:int, world_size:int, args:Dict):
         if rank == 0:
             os.makedirs(args["output_dir"], exist_ok=True)
         dist.barrier()
-        save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
-        if args["train_type"] in ["custom_lora", "custom_qlora", "hqq_lora"]:
+        save_policy = FullStateDictConfig(
+            offload_to_cpu=True, rank0_only=True
+        )
+        if args["train_type"] in [
+            "custom_lora",
+            "custom_qlora",
+            "hqq_lora",
+        ]:
             cpu_state_dict = {}
-            trainable_modules = [(n,m) for n,m in model.named_modules() if n.endswith('lora_AB')]
+            trainable_modules = [
+                (n, m)
+                for n, m in model.named_modules()
+                if n.endswith("lora_AB")
+            ]
             for prefix, module in trainable_modules:
-                prefix = (prefix.replace("_fsdp_wrapped_module.", "")
-                                .replace("_checkpoint_wrapped_module.", "")
-                                .replace("_offload_wrapped_module.", ""))
-                with FSDP.state_dict_type(module, StateDictType.FULL_STATE_DICT, save_policy):
-                    cpu_state_dict = {**cpu_state_dict, **{f"{prefix}.{k}":v for k,v in module.state_dict().items()}}
+                prefix = (
+                    prefix.replace("_fsdp_wrapped_module.", "")
+                    .replace("_checkpoint_wrapped_module.", "")
+                    .replace("_offload_wrapped_module.", "")
+                )
+                with FSDP.state_dict_type(
+                    module, StateDictType.FULL_STATE_DICT, save_policy
+                ):
+                    cpu_state_dict = {
+                        **cpu_state_dict,
+                        **{
+                            f"{prefix}.{k}": v
+                            for k, v in module.state_dict().items()
+                        },
+                    }
                 dist.barrier()
                 torch.cuda.synchronize()
-            if rank==0:
+            if rank == 0:
                 print_func("Saving trained LoRA weights.")
-                save_file(cpu_state_dict, os.path.join(args["output_dir"], "model_state_dict.safetensors"))
+                save_file(
+                    cpu_state_dict,
+                    os.path.join(
+                        args["output_dir"], "model_state_dict.safetensors"
+                    ),
+                )
                 print_func("Done", rank)
         else:
-            with FSDP.state_dict_type(model, StateDictType.FULL_STATE_DICT, save_policy):
+            with FSDP.state_dict_type(
+                model, StateDictType.FULL_STATE_DICT, save_policy
+            ):
                 cpu_state_dict = model.state_dict()
-                if rank==0:
+                if rank == 0:
                     print_func("Saving full model weights.")
-                    save_file(cpu_state_dict, os.path.join(args["output_dir"], "model_state_dict.safetensors"))
+                    save_file(
+                        cpu_state_dict,
+                        os.path.join(
+                            args["output_dir"],
+                            "model_state_dict.safetensors",
+                        ),
+                    )
                     print_func("Done", rank)
 
-    dist.barrier() # Stop other processes ending while model saving - probably not needed?
+    dist.barrier()  # Stop other processes ending while model saving - probably not needed?
 
     # Clean up
     dist.destroy_process_group()
 
 
 class FSDP_QLORA:
-    def __init__(self,
-                world_size: int = -1, # Number of GPUs to use. -1 = all available GPUs.
-                train_type: str = "qlora", # "full", "lora", "qlora", or "custom_qlora"
-                batch_size: int = 1, # Batch size per GPU. Effective BS = batch_size * world_size * gradient_accumulation_steps
-                context_length: int = 512, # Max length of input sequence (in tokens)
-                gradient_accumulation_steps: int = 1, # How many steps to accumulate gradients over (increases effective batch size)
-                num_epochs: int = 1, # How many epochs of training to do
-                dataset: str = "alpaca_sample", # alpaca, alpaca_sample (for a 128-sample test) or "dummy" for 16 long dummy samples
-                sharding_strategy: str = "full_shard", # Sharding strategy for FSDP
-                use_gradient_checkpointing: bool_arg = True, # Use FSDP's activation checkpointing
-                reentrant_checkpointing: bool_arg = False, # Use re-entrant autograd activation checkpointing. Setting to True can use less GPU memory with BNB QLoRA
-                use_cpu_offload: bool_arg = True, # Use FSDP's CPU offloading
-                use_activation_cpu_offload: bool_arg = False, # Use FSDP's activation CPU offloading
-                low_memory: bool_arg = True, # Load one copy of the model into CPU memory before sharding with FSDP. For QLoRA, quantizes each layer individually on GPU before placing on CPU.
-                no_sync: bool_arg = False, # Prevent gradient sync until update step. Likely uses more memory. Required for `use_cpu_offload` and `gradient_accumulation_steps > 1`
-                precision: str = "bf16", # Training precision. autocast precisions use mixed precision
-                model_name: str = "meta-llama/Llama-2-7b-hf", # Which model to train - e.g. "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-                save_model: bool_arg = False, # Save the resulting model
-                output_dir: str = "output", # Output directory to save the final model to
-                lora_rank: int = 64, # LoRA rank for lora/qlora
-                lora_alpha: int = 16, # LoRA alpha for lora/qlora
-                lora_dropout: float = 0.1, # LoRA dropout for lora/qlora
-                lora_target_modules: str = "all", # If 'default', uses peft defaults. Use 'all' for our best guess for Llama models
-                verbose: bool_arg = False, # Whether to print extra info for debugging
-                lr: float = 1e-5, # Learning rate
-                apply_gradient_clipping: bool_arg = False, # Apply gradient norm clipping
-                grad_norm: float = 0.3, # Gradient norm clipping
-                wd: float = 0.1, # Weight decay
-                profile_memory: bool_arg = False, # Profile memory usage for the first few batches. Keep false for training. May increase memory usage.
-                optimizer: str = "adamw", # Optimizer
-                lr_scheduler: str = "constant", # Learning Rate Scheduler. linear and cosine warm up for 10% of training steps.
-                log_to: str = "tqdm", # Where to log output
-                master_addr: str = "localhost", # For distributed training
-                master_port: str = "12355", # For distributed training, must be the same for all processes
-                seed: int = 42, # Random seed
-                project_name: str = "fsdp_qlora", # For wandb logging
-                name: str = None, # For wandb logging
-                group: str = None, # For wandb logging
-                entity: str = None, # For wandb logging
-                 ):
-        world_size = world_size if world_size != -1 else torch.cuda.device_count()
+    def __init__(
+        self,
+        world_size: int = -1,  # Number of GPUs to use. -1 = all available GPUs.
+        train_type: str = "qlora",  # "full", "lora", "qlora", or "custom_qlora"
+        batch_size: int = 1,  # Batch size per GPU. Effective BS = batch_size * world_size * gradient_accumulation_steps
+        context_length: int = 512,  # Max length of input sequence (in tokens)
+        gradient_accumulation_steps: int = 1,  # How many steps to accumulate gradients over (increases effective batch size)
+        num_epochs: int = 1,  # How many epochs of training to do
+        dataset: str = "alpaca_sample",  # alpaca, alpaca_sample (for a 128-sample test) or "dummy" for 16 long dummy samples
+        sharding_strategy: str = "full_shard",  # Sharding strategy for FSDP
+        use_gradient_checkpointing: bool_arg = True,  # Use FSDP's activation checkpointing
+        reentrant_checkpointing: bool_arg = False,  # Use re-entrant autograd activation checkpointing. Setting to True can use less GPU memory with BNB QLoRA
+        use_cpu_offload: bool_arg = True,  # Use FSDP's CPU offloading
+        use_activation_cpu_offload: bool_arg = False,  # Use FSDP's activation CPU offloading
+        low_memory: bool_arg = True,  # Load one copy of the model into CPU memory before sharding with FSDP. For QLoRA, quantizes each layer individually on GPU before placing on CPU.
+        no_sync: bool_arg = False,  # Prevent gradient sync until update step. Likely uses more memory. Required for `use_cpu_offload` and `gradient_accumulation_steps > 1`
+        precision: str = "bf16",  # Training precision. autocast precisions use mixed precision
+        model_name: str = "meta-llama/Llama-2-7b-hf",  # Which model to train - e.g. "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        save_model: bool_arg = False,  # Save the resulting model
+        output_dir: str = "output",  # Output directory to save the final model to
+        lora_rank: int = 64,  # LoRA rank for lora/qlora
+        lora_alpha: int = 16,  # LoRA alpha for lora/qlora
+        lora_dropout: float = 0.1,  # LoRA dropout for lora/qlora
+        lora_target_modules: str = "all",  # If 'default', uses peft defaults. Use 'all' for our best guess for Llama models
+        verbose: bool_arg = False,  # Whether to print extra info for debugging
+        lr: float = 1e-5,  # Learning rate
+        apply_gradient_clipping: bool_arg = False,  # Apply gradient norm clipping
+        grad_norm: float = 0.3,  # Gradient norm clipping
+        wd: float = 0.1,  # Weight decay
+        profile_memory: bool_arg = False,  # Profile memory usage for the first few batches. Keep false for training. May increase memory usage.
+        optimizer: str = "adamw",  # Optimizer
+        lr_scheduler: str = "constant",  # Learning Rate Scheduler. linear and cosine warm up for 10% of training steps.
+        log_to: str = "tqdm",  # Where to log output
+        master_addr: str = "localhost",  # For distributed training
+        master_port: str = "12355",  # For distributed training, must be the same for all processes
+        seed: int = 42,  # Random seed
+        project_name: str = "fsdp_qlora",  # For wandb logging
+        name: str = None,  # For wandb logging
+        group: str = None,  # For wandb logging
+        entity: str = None,  # For wandb logging
+    ):
+        world_size = (
+            world_size if world_size != -1 else torch.cuda.device_count()
+        )
         print(f"World size: {world_size}")
 
         if lora_target_modules == "all":
-            lora_target_modules = ["k_proj", "q_proj", "v_proj", "up_proj", "down_proj", "gate_proj"]
+            lora_target_modules = [
+                "k_proj",
+                "q_proj",
+                "v_proj",
+                "up_proj",
+                "down_proj",
+                "gate_proj",
+            ]
         elif lora_target_modules.lower() == "default":
             lora_target_modules = None
 
-        if precision in ["bf16", "bf16_autocast", "bf16_buffers_autocast"] and not torch.cuda.is_available():
+        if (
+            precision in ["bf16", "bf16_autocast", "bf16_buffers_autocast"]
+            and not torch.cuda.is_available()
+        ):
             raise ValueError("dummy you don't have cuda configured")
-        
+
         if use_cpu_offload and gradient_accumulation_steps > 1:
             no_sync = True
 
@@ -980,46 +1391,48 @@ class FSDP_QLORA:
             no_sync = False
 
         if train_type in ["hqq_lora"] and HQQLinear is None:
-            raise ValueError("dummmmmmmyyyyyy, you don't have HQQ configured")
+            raise ValueError(
+                "dummmmmmmyyyyyy, you don't have HQQ configured"
+            )
 
         args = {
-            "train_type":train_type,
-            "batch_size":batch_size,
-            "context_length":context_length,
-            "gradient_accumulation_steps":gradient_accumulation_steps,
-            "num_epochs":num_epochs,
-            "dataset":dataset,
-            "sharding_strategy":sharding_strategy,
-            "use_gradient_checkpointing":use_gradient_checkpointing,
-            "reentrant_checkpointing":reentrant_checkpointing,
-            "use_cpu_offload":use_cpu_offload,
-            "use_activation_cpu_offload":use_activation_cpu_offload,
-            "low_memory":low_memory,
-            "no_sync":no_sync,
-            "precision":precision,
-            "model_name":model_name,
-            "save_model":save_model,
-            "output_dir":output_dir,
-            "lora_rank":lora_rank,
-            "lora_alpha":lora_alpha,
-            "lora_dropout":lora_dropout,
-            "lora_target_modules":lora_target_modules,
-            "verbose":verbose,
-            "lr":lr,
-            "apply_gradient_clipping":apply_gradient_clipping,
-            "grad_norm":grad_norm,
-            "wd":wd,
-            "profile_memory":profile_memory,
-            "optimizer":optimizer,
-            "lr_scheduler":lr_scheduler,
-            "log_to":log_to,
-            "master_addr":master_addr,
-            "master_port":master_port,
-            "seed":seed,
-            "project_name":project_name,
-            "name":name,
-            "group":group,
-            "entity":entity,
+            "train_type": train_type,
+            "batch_size": batch_size,
+            "context_length": context_length,
+            "gradient_accumulation_steps": gradient_accumulation_steps,
+            "num_epochs": num_epochs,
+            "dataset": dataset,
+            "sharding_strategy": sharding_strategy,
+            "use_gradient_checkpointing": use_gradient_checkpointing,
+            "reentrant_checkpointing": reentrant_checkpointing,
+            "use_cpu_offload": use_cpu_offload,
+            "use_activation_cpu_offload": use_activation_cpu_offload,
+            "low_memory": low_memory,
+            "no_sync": no_sync,
+            "precision": precision,
+            "model_name": model_name,
+            "save_model": save_model,
+            "output_dir": output_dir,
+            "lora_rank": lora_rank,
+            "lora_alpha": lora_alpha,
+            "lora_dropout": lora_dropout,
+            "lora_target_modules": lora_target_modules,
+            "verbose": verbose,
+            "lr": lr,
+            "apply_gradient_clipping": apply_gradient_clipping,
+            "grad_norm": grad_norm,
+            "wd": wd,
+            "profile_memory": profile_memory,
+            "optimizer": optimizer,
+            "lr_scheduler": lr_scheduler,
+            "log_to": log_to,
+            "master_addr": master_addr,
+            "master_port": master_port,
+            "seed": seed,
+            "project_name": project_name,
+            "name": name,
+            "group": group,
+            "entity": entity,
         }
 
         def train_qlora(self):
@@ -1027,5 +1440,5 @@ class FSDP_QLORA:
                 fsdp_main,
                 args=(world_size, args),
                 nprocs=torch.cuda.device_count(),
-                join=True
+                join=True,
             )
