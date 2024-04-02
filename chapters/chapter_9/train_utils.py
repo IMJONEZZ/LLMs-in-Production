@@ -1014,9 +1014,9 @@ def fsdp_main(local_rank: int, world_size: int, args: Dict):
             else CheckpointImpl.NO_REENTRANT,
         )
 
-        check_fn = lambda submodule: isinstance(
-            submodule, LlamaDecoderLayer
-        )
+        def check_fn(submodule):
+            return isinstance(submodule, LlamaDecoderLayer)
+
         print("Applying activation checkpointing", rank)
         apply_activation_checkpointing(
             model,
