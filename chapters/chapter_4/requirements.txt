@@ -1,0 +1,9 @@
+datasets==2.13.0
+evaluate==0.4.0
+openai==0.27.8
+nltk==3.8.1
+rouge-score==0.1.2
+sentence-transformers==2.2.2
+slack-sdk==3.27.1
+transformers==4.30.2
+weightwatcher==0.7.1.5
