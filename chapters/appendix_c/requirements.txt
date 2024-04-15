@@ -1,0 +1,6 @@
+diffusers
+torch
+pillow
+transformers
+numpy
+tqdm
