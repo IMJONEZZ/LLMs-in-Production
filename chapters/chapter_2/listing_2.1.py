@@ -7,6 +7,12 @@ from nltk.lm.preprocessing import (
 )
 from nltk.lm import MLE
 
+try:
+    import nltk
+    nltk.data.find('tokenizers/punkt.zip')
+except LookupError:
+    nltk.download('punkt')
+
 # Create a corpus from any number of plain .txt files
 my_corpus = PlaintextCorpusReader("./", ".*\.txt")
 file_ids = "./data/hamlet.txt"
