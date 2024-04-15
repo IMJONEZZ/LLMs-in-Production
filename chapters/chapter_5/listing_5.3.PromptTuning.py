@@ -67,7 +67,7 @@ def preprocess_function(examples):
 # Model Prompt Tuning
 if __name__ == "__main__":
     # Define training parameters
-    device = "cuda"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     model_name_or_path = "bigscience/bloomz-560m"
     tokenizer_name_or_path = "bigscience/bloomz-560m"
     dataset_name = "twitter_complaints"

@@ -18,7 +18,7 @@ import evaluate
 import torch
 import numpy as np
 
-model_checkpoint = "meta-llama/Llama-2-7b-hf"
+model_checkpoint = "roberta-large"
 lr = 1e-3
 batch_size = 16
 num_epochs = 10
@@ -70,10 +70,19 @@ def compute_metrics(p):
         "accuracy": results["overall_accuracy"],
     }
 
-
-tokenizer = AutoTokenizer.from_pretrained(
-    model_checkpoint, add_prefix_space=True
-)
+#This is a private repo you must be logged in for
+try:
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_checkpoint, add_prefix_space=True
+    )
+except OSError:
+    import subprocess
+    subprocess.run(["huggingface-cli","login"])
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_checkpoint, 
+        add_prefix_space=True,
+        use_auth_token=True
+    )
 
 
 def tokenize_and_align_labels(examples):
@@ -131,9 +140,21 @@ label2id = {
     "I-RNA": 10,
 }
 
-model = AutoModelForTokenClassification.from_pretrained(
-    model_checkpoint, num_labels=11, id2label=id2label, label2id=label2id
-)
+#This is a private repo
+try:
+    model = AutoModelForTokenClassification.from_pretrained(
+        model_checkpoint, num_labels=11, id2label=id2label, label2id=label2id
+    )
+except OSError:
+    import subprocess
+    subprocess.run(["huggingface-cli","login"])
+    model = AutoModelForTokenClassification.from_pretrained(
+        model_checkpoint, 
+        num_labels=11, 
+        id2label=id2label, 
+        label2id=label2id,
+        use_auth_token=True
+    )
 
 peft_config = LoraConfig(
     task_type=TaskType.TOKEN_CLS,

@@ -7,11 +7,6 @@ import time
 from urllib import request
 import tarfile
 
-# Download utilities function if needed
-request.urlretrieve(
-    "https://raw.githubusercontent.com/hendrycks/test/master/crop.py",
-    "utils/crop.py",
-)
 from utils.crop import crop  # noqa E402
 
 openai.api_key = "INSERTYOURKEYHERE"  # Or use your own model

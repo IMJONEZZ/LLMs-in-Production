@@ -1,4 +1,5 @@
-from utils import process_utt, lookup
+from utils.process_utt import process_utt
+from utils.lookup import lookup
 from nltk.corpus.reader import PlaintextCorpusReader
 import numpy as np
 

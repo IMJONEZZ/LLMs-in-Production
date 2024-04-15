@@ -23,15 +23,9 @@ if not os.path.exists(model_dir):
 # Instantiate our tokenizer
 tokenizer = AutoTokenizer.from_pretrained("google/switch-base-8")
 
-# Establish our SwitchTransformers config
-config = SwitchTransformersConfig(
-    decoder_start_token_id=tokenizer.pad_token_id
-)
-
 # Instantiate our model from the config
 model = SwitchTransformersForConditionalGeneration.from_pretrained(
     "google/switch-base-8",
-    config=config,
     device_map="auto",
     torch_dtype=torch.float16,
 )
