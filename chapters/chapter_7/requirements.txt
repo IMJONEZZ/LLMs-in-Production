@@ -1,5 +1,5 @@
-guidance==0.1.5
-langchain==0.1.0  # 0.0.348  # 0.1.0
-langchain-experimental==0.0.49
-transformers==4.39.3
+guidance==0.1.13
+langchain==0.1.16
+langchain-experimental==0.0.57
 torch==2.2.2
+transformers==4.39.3

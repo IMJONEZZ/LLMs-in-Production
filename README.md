@@ -15,10 +15,16 @@ Create an environment and install dependencies:
 ```bash
 make setup
 ```
+This will create an environment for each chapter, named after the chapter directory, e.g. chapter_1.
 
 Activate environment:
 ```bash
 conda activate llmbook
+```
+
+Deactivate environment:
+```bash
+conda deactivate
 ```
 
 Run linters and formatters:
@@ -29,6 +35,11 @@ make lint
 Run Tests:
 ```bash
 make test
+```
+
+Remove all environments:
+```bash
+make clean
 ```
 
 

@@ -1,0 +1,4 @@
+datasets==2.18.0
+feast==0.36.0
+pandas<2
+sentence-transformers==2.6.1

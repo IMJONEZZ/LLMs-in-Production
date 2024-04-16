@@ -15,6 +15,26 @@ if ! command -v git-lfs &> /dev/null; then
   exit 1
 fi
 
+# Check if the 'llmbook' environment already exists
+if conda info --envs | grep -q 'llmbook'; then
+  echo "Environment 'llmbook' already exists. Skipping environment creation."
+else
+  # Create the conda environment called 'llmbook'
+  conda create -n llmbook python=3.10 --yes
+fi
+
+# Activate the 'llmbook' conda environment
+conda activate llmbook
+
+# Install requirements from the requirements.txt file
+echo "Installing requirements from requirements.txt:"
+pip install -r requirements.txt
+
+# Deactivate the conda environment after installing packages
+echo "Packages installed. Deactivating conda environment..."
+conda deactivate
+
+# Create an environment for each chapter
 for dir in chapters/*/; do
   chapter=$(basename $dir)
   echo "Setting up environment for $chapter"
