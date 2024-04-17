@@ -43,6 +43,16 @@ make clean
 ```
 
 
+## Additional notes
+
+If necessary, each chapter will contain its own README.md file with additional setup instructions.
+
+Some listings are boilerplates and are not intended to be ran. When possible, examples are given that can be ran for additional context.
+
+All scripts are designed to be ran from project root, e.g. `python chapters/chapter_1/listing_1.1.py`
+
+
+
 ## Manning Publications
 
 Check out other Manning titles and learning resources [here](https://tinyurl.com/5x2h9k4y)!

@@ -171,6 +171,7 @@ ww-img/
 
 # Chapters
 models/
+!models/.gitkeep
 chapters/chapter_4/tokenizers/
 
 # JavaScript
