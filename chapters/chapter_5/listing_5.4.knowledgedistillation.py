@@ -129,7 +129,7 @@ if __name__ == "__main__":
         num_train_epochs=1,
         per_device_train_batch_size=1,
         per_device_eval_batch_size=1,
-        fp16=False, #False if no GPU
+        fp16=False,  # False if no GPU
         learning_rate=6e-5,
         seed=8855,
         # Evaluation strategies

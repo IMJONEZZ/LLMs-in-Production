@@ -70,18 +70,18 @@ def compute_metrics(p):
         "accuracy": results["overall_accuracy"],
     }
 
-#This is a private repo you must be logged in for
+
+# This is a private repo you must be logged in for
 try:
     tokenizer = AutoTokenizer.from_pretrained(
         model_checkpoint, add_prefix_space=True
     )
 except OSError:
     import subprocess
-    subprocess.run(["huggingface-cli","login"])
+
+    subprocess.run(["huggingface-cli", "login"])
     tokenizer = AutoTokenizer.from_pretrained(
-        model_checkpoint, 
-        add_prefix_space=True,
-        use_auth_token=True
+        model_checkpoint, add_prefix_space=True, use_auth_token=True
     )
 
 
@@ -140,20 +140,24 @@ label2id = {
     "I-RNA": 10,
 }
 
-#This is a private repo
+# This is a private repo
 try:
     model = AutoModelForTokenClassification.from_pretrained(
-        model_checkpoint, num_labels=11, id2label=id2label, label2id=label2id
+        model_checkpoint,
+        num_labels=11,
+        id2label=id2label,
+        label2id=label2id,
     )
 except OSError:
     import subprocess
-    subprocess.run(["huggingface-cli","login"])
+
+    subprocess.run(["huggingface-cli", "login"])
     model = AutoModelForTokenClassification.from_pretrained(
-        model_checkpoint, 
-        num_labels=11, 
-        id2label=id2label, 
+        model_checkpoint,
+        num_labels=11,
+        id2label=id2label,
         label2id=label2id,
-        use_auth_token=True
+        use_auth_token=True,
     )
 
 peft_config = LoraConfig(

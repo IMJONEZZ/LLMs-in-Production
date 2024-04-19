@@ -1,8 +1,7 @@
 import argparse
-from typing import AsyncGenerator
 
 from fastapi import FastAPI, Request
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import Response
 import torch
 import uvicorn
 
@@ -11,9 +10,7 @@ from transformers import (
     AutoTokenizer,
     StoppingCriteria,
     StoppingCriteriaList,
-    TextIteratorStreamer,
 )
-from threading import Thread
 
 
 # Torch settings
@@ -53,18 +50,6 @@ model = AutoModelForCausalLM.from_pretrained(
 model = model.to(device)
 
 
-# Define streamer
-streamer = TextIteratorStreamer(
-    tokenizer, timeout=10, skip_prompt=True, skip_special_tokens=True
-)
-
-
-async def stream_results() -> AsyncGenerator[bytes, None]:
-    for response in streamer:
-        # It's typical to return streamed responses byte encoded
-        yield (response).encode("utf-8")
-
-
 # Run FastAPI
 app = FastAPI()
 
@@ -82,19 +67,19 @@ async def generate(request: Request) -> Response:
     # RAG will go here
     # ...
 
-    inputs = tokenizer([prompt], return_tensors="pt").to(device)
-    generation_kwargs = dict(
-        inputs,
-        streamer=streamer,
+    # Generate response
+    inputs = tokenizer(prompt, return_tensors="pt").to(device)
+    response_tokens = model.generate(
+        inputs["input_ids"],
         max_new_tokens=1024,
         stopping_criteria=StoppingCriteriaList([StopOnTokens()]),
     )
+    input_length = inputs["input_ids"].shape[1]
+    response = tokenizer.decode(
+        response_tokens[0][input_length:], skip_special_tokens=True
+    )
 
-    # Start a seperate thread to generate results async in stream
-    thread = Thread(target=model.generate, kwargs=generation_kwargs)
-    thread.start()
-
-    return StreamingResponse(stream_results())
+    return response
 
 
 if __name__ == "__main__":

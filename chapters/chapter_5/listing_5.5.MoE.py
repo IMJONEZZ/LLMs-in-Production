@@ -2,7 +2,6 @@ import os
 from transformers import (
     AutoTokenizer,
     SwitchTransformersForConditionalGeneration,
-    SwitchTransformersConfig,
     TrainingArguments,
     Trainer,
     DataCollatorForLanguageModeling,

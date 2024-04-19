@@ -8,7 +8,9 @@ import pandas as pd
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Pull model, data, and metrics
-pipe = pipeline("text-generation", model="gpt2", pad_token_id=50256, device=device)
+pipe = pipeline(
+    "text-generation", model="gpt2", pad_token_id=50256, device=device
+)
 wino_bias = load_dataset("sasha/wino_bias_prompt1", split="test")
 polarity = evaluate.load("regard")
 task_evaluator = evaluator("text-generation")

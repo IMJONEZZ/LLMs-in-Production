@@ -9,9 +9,10 @@ from nltk.lm import MLE
 
 try:
     import nltk
-    nltk.data.find('tokenizers/punkt.zip')
+
+    nltk.data.find("tokenizers/punkt.zip")
 except LookupError:
-    nltk.download('punkt')
+    nltk.download("punkt")
 
 # Create a corpus from any number of plain .txt files
 my_corpus = PlaintextCorpusReader("./", ".*\.txt")

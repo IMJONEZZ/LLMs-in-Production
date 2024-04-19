@@ -1,6 +1,7 @@
 import numpy as np
 from scipy import linalg
 
+
 def compute_pca(data, n_components=2):
     """
     Input:

@@ -1,6 +1,12 @@
 # Packages needed: llama-recipies fastcore --extra-index-url https://download.pytorch.org/whl/test/cu121
 # General
-import torch, os, time, safetensors, copy, math, types
+import torch
+import os
+import time
+import safetensors
+import copy
+import math
+import types
 import functools
 import torch.optim as optim
 from torch.optim.lr_scheduler import LambdaLR
@@ -971,17 +977,19 @@ def fsdp_main(local_rank: int, world_size: int, args: Dict):
         auto_wrap_policy=my_auto_wrap_policy,
         # backward_prefetch=None, #BackwardPrefetch.BACKWARD_PRE
         use_orig_params=False,
-        cpu_offload=CPUOffload(offload_params=True)
-        if args["use_cpu_offload"]
-        else None,
+        cpu_offload=(
+            CPUOffload(offload_params=True)
+            if args["use_cpu_offload"]
+            else None
+        ),
         limit_all_gathers=True,  # See https://github.com/pytorch/pytorch/issues/91165
         device_id=torch.cuda.current_device(),
         sync_module_states=args["low_memory"],
-        param_init_fn=lambda module: module.to_empty(
-            device=torch.device("cuda"), recurse=False
-        )
-        if (rank != 0 and args["low_memory"])
-        else None,  # TODO note about meta device and why we need this
+        param_init_fn=lambda module: (
+            module.to_empty(device=torch.device("cuda"), recurse=False)
+            if (rank != 0 and args["low_memory"])
+            else None
+        ),  # TODO note about meta device and why we need this
         mixed_precision=mp_policy,
     )
     print(
@@ -1009,9 +1017,11 @@ def fsdp_main(local_rank: int, world_size: int, args: Dict):
             model.enable_input_require_grads()
         non_reentrant_wrapper = functools.partial(
             checkpoint_wrapper,
-            checkpoint_impl=CheckpointImpl.REENTRANT
-            if args["reentrant_checkpointing"]
-            else CheckpointImpl.NO_REENTRANT,
+            checkpoint_impl=(
+                CheckpointImpl.REENTRANT
+                if args["reentrant_checkpointing"]
+                else CheckpointImpl.NO_REENTRANT
+            ),
         )
 
         def check_fn(submodule):

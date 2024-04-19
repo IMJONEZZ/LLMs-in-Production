@@ -1,6 +1,7 @@
 import numpy as np
 from collections import defaultdict
 
+
 def get_idx(words, word2Ind):
     idx = []
     for word in words:
