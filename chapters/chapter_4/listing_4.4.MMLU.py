@@ -1,5 +1,6 @@
 import argparse
-import openai
+from openai import OpenAI
+
 import os
 import numpy as np
 import pandas as pd
@@ -7,9 +8,10 @@ import time
 from urllib import request
 import tarfile
 
-from utils.crop import crop  # noqa E402
+from utils import crop
 
-openai.api_key = "INSERTYOURKEYHERE"  # Or use your own model
+# Or use your own model
+client = OpenAI(api_key="INSERTYOURKEYHERE")
 choices = ["A", "B", "C", "D"]
 
 
@@ -87,7 +89,7 @@ def eval(args, subject, engine, dev_df, test_df):
         # Prompt your model
         while True:
             try:
-                c = openai.Completion.create(
+                c = client.completions.create(
                     engine=engine,
                     prompt=prompt,
                     max_tokens=1,
@@ -106,7 +108,7 @@ def eval(args, subject, engine, dev_df, test_df):
         for ans in answers:
             try:
                 lprobs.append(
-                    c["choices"][0]["logprobs"]["top_logprobs"][-1][
+                    c.choices[0].logprobs.top_logprobs[-1][
                         " {}".format(ans)
                     ]
                 )

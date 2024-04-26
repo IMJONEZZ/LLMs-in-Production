@@ -17,6 +17,8 @@ def embed_text(example):
 
 
 print(f"Train 1: {embs_train[0]}")
+# Train 1: {'text': 'Sunday afternoon walking through Venice in the sun with @user ️ ️ ️ @ Abbot Kinney, Venice', 'label': 12}
+
 embs_train = embs_train.map(embed_text, batched=False)
 embs_test = embs_test.map(embed_text, batched=False)
 
@@ -39,3 +41,24 @@ for score, label, text in zip(scores, samples["label"], samples["text"]):
     print(f"TEXT:\n{text[:200]} [...]")
     print(f"SCORE: {score:.2f}")
     print(f"LABEL: {label}")
+
+# QUERY LABEL: 10
+# QUERY TEXT: The calm before...... | w/ sofarsounds @user | : B. Hall.......#sofarsounds… [...]
+
+# ==================================================
+# Retrieved Documents:
+# ==================================================
+# TEXT:
+# So much love for sofarsounds &amp; sofarsoundsla! Great times this eve #sofarla #actasif @ The… [...]
+# SCORE: 0.85
+# LABEL: 4
+# ==================================================
+# TEXT:
+# Couch view lookin' like: #sundaze @ The Olivian Luxury Apartment Homes [...]
+# SCORE: 1.11
+# LABEL: 1
+# ==================================================
+# TEXT:
+# I ️ Faure Requiem @user oboyddd @ Walt Disney Concert Hall [...]
+# SCORE: 1.13
+# LABEL: 0
