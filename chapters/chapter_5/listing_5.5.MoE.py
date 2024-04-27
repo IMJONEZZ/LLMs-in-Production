@@ -25,7 +25,7 @@ tokenizer = AutoTokenizer.from_pretrained("google/switch-base-8")
 # Instantiate our model from the config
 model = SwitchTransformersForConditionalGeneration.from_pretrained(
     "google/switch-base-8",
-    device_map="auto",
+    device_map="auto",  # I don't think we need this, according to the docs device_map only works for inference not training
     torch_dtype=torch.float16,
 )
 
@@ -82,7 +82,7 @@ input = "To be or not <extra_id_0> <extra_id_0>"
 tokenized_inputs = tokenizer(input, return_tensors="pt")
 out = model.generate(
     input_ids=tokenized_inputs["input_ids"].to("cuda"),
-    attention_mask=tokenized_inputs["attention_mask"],
+    attention_mask=tokenized_inputs["attention_mask"].to("cuda"),
     max_length=256,
     num_beams=5,
     temperature=0.7,
@@ -91,3 +91,5 @@ out = model.generate(
     no_repeat_ngram_size=2,
 )
 print(f"To be or not {tokenizer.decode(out[0], skip_special_tokens=True)}")
+
+# To be or not sss

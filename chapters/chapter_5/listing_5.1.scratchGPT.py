@@ -245,8 +245,19 @@ if __name__ == "__main__":
     )
 
     # Load the saved model
-    loaded = GPT().load_state_dict(model_path)
+    loaded_model = GPT().to(device)
+    loaded_model.load_state_dict(torch.load(model_path))
 
     # Test the loaded moel
     context = torch.zeros((1, 1), dtype=torch.long, device=device)
-    print(decode(loaded.generate(context, max_new_tokens=500)[0].tolist()))
+    print(
+        decode(
+            loaded_model.generate(context, max_new_tokens=500)[0].tolist()
+        )
+    )
+
+# iedoloes own hawaehod it st iv ithaner, ye'ns soud bomg mo b hredan at
+# theng t'thed ond unyy ted wyy ; o bbyt." h eatourty at mere hevisall.on a
+# odedect at heaAg Hme sgehed wer foutedr mas pvearouth ocqe  wato is f
+# wave, 'lnto ran Tsun oo st ad s ce spit'tholint d pantulayoled I s
+# asenois snt sked be heriseay aly mait ind t ft goveea ouriseants ces te"

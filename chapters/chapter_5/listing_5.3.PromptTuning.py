@@ -97,6 +97,7 @@ if __name__ == "__main__":
     # Load Dataset
     dataset = load_dataset("ought/raft", dataset_name)
     print(f"Dataset 1: {dataset['train'][0]}")
+    # Dataset 1: {'Tweet text': '@HMRCcustomers No this is my first job', 'ID': 0, 'Label': 2}
 
     # Label Dataset
     classes = [
@@ -109,6 +110,7 @@ if __name__ == "__main__":
         num_proc=1,
     )
     print(f"Dataset 2: {dataset['train'][0]}")
+    # Dataset 2: {'Tweet text': '@HMRCcustomers No this is my first job', 'ID': 0, 'Label': 2, 'text_label': 'no complaint'}
 
     # Load Tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
@@ -121,6 +123,7 @@ if __name__ == "__main__":
         ]
     )
     print(f"Target Max Length: {target_max_length}")
+    # Target Max Length: 3
 
     # Run Tokenizer across dataset and preprocess
     processed_datasets = dataset.map(
@@ -154,6 +157,7 @@ if __name__ == "__main__":
     model = AutoModelForCausalLM.from_pretrained(model_name_or_path)
     model = get_peft_model(model, peft_config)
     print(model.print_trainable_parameters())
+    # trainable params: 8,192 || all params: 559,222,784 || trainable%: 0.0014648902430985358
     model = model.to(device)
 
     # Define Optimizer
@@ -233,3 +237,7 @@ if __name__ == "__main__":
                 outputs.detach().cpu().numpy(), skip_special_tokens=True
             )
         )
+
+        # ['Tweet text : {"@nationalgridus I have no water and the bill is
+        # current and paid. Can you do something about this?"}} Label :
+        # {"@nationalgridus I have no water and']

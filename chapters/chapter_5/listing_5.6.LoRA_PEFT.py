@@ -195,8 +195,9 @@ trainer = Trainer(
 )
 
 trainer.train()
+trainer.save_model(model_dir)
+tokenizer.save_pretrained(model_dir)
 
-peft_model_id = "stevhliu/roberta-large-lora-token-classification"
 config = PeftConfig.from_pretrained(model_dir)
 inference_model = AutoModelForTokenClassification.from_pretrained(
     config.base_model_name_or_path,
@@ -205,7 +206,7 @@ inference_model = AutoModelForTokenClassification.from_pretrained(
     label2id=label2id,
 )
 tokenizer = AutoTokenizer.from_pretrained(config.base_model_name_or_path)
-model = PeftModel.from_pretrained(inference_model, peft_model_id)
+model = PeftModel.from_pretrained(inference_model, model_dir)
 
 text = (
     "The activation of IL-2 gene expression and NF-kappa B through CD28 "
@@ -221,3 +222,35 @@ predictions = torch.argmax(logits, dim=2)
 
 for token, prediction in zip(tokens, predictions[0].numpy()):
     print((token, model.config.id2label[prediction]))
+
+# ('<s>', 'O')
+# ('The', 'O')
+# ('Ġactivation', 'O')
+# ('Ġof', 'O')
+# ('ĠIL', 'B-DNA')
+# ('-', 'O')
+# ('2', 'I-DNA')
+# ('Ġgene', 'I-DNA')
+# ('Ġexpression', 'O')
+# ('Ġand', 'O')
+# ('ĠNF', 'B-protein')
+# ('-', 'O')
+# ('k', 'I-protein')
+# ('appa', 'I-protein')
+# ('ĠB', 'I-protein')
+# ('Ġthrough', 'O')
+# ('ĠCD', 'B-protein')
+# ('28', 'I-protein')
+# ('Ġrequires', 'O')
+# ('Ġreactive', 'O')
+# ('Ġoxygen', 'O')
+# ('Ġproduction', 'O')
+# ('Ġby', 'O')
+# ('Ġ5', 'B-protein')
+# ('-', 'O')
+# ('lip', 'I-protein')
+# ('oxy', 'I-protein')
+# ('gen', 'I-protein')
+# ('ase', 'I-protein')
+# ('.', 'O')
+# ('</s>', 'O')

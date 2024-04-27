@@ -80,7 +80,7 @@ trainer = Trainer(
 # Train and save the model
 trainer.train()
 trainer.save_model(model_dir)
-tokenizer.save_pretrained()
+tokenizer.save_pretrained(model_dir)
 
 # Load the saved model
 model = GPT2LMHeadModel.from_pretrained(model_dir)
@@ -99,3 +99,9 @@ out = model.generate(
     no_repeat_ngram_size=2,
 )
 print(tokenizer.decode(out[0], skip_special_tokens=True))
+
+# To be or not,,}, the,., to, I, a, and, in, you, he, of, it,\', that,',
+# was, at,s, his,ov,.', her, had, with,!, on, for, is,?, him, not the the.
+# the to the and the I the a the} the in the he the you the of the\' the
+# that the it the' thes the was the at the his the.' theov the had the her
+# the with the! the? the for the is the him the on the she, have, ", she..
