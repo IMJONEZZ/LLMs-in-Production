@@ -5,7 +5,7 @@
 
 
 # docker run --gpus all -it --rm nvcr.io/nvidia/pytorch:23.09-py3
-# pip install transformers
+# pip install transformers==4.40.1
 
 
 import torch
@@ -52,5 +52,7 @@ torch.jit.save(trt_model, "trt_model.ts")
 trt_model = torch.jit.load("trt_model.ts")
 tokens.half()
 tokens = tokens.type(torch.int)
-results = trt_model(tokens)
-print(tokenizer.decode(results))
+logits = trt_model(tokens)
+results = torch.softmax(logits[-1], dim=-1).argmax(dim=-1)
+print(tokenizer.batch_decode(results))
+# ['\n was a the way.\n']

@@ -1,9 +1,9 @@
 import os
-import pinecone
 import tiktoken
 from datasets import load_dataset
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings.openai import OpenAIEmbeddings
+from pinecone import Pinecone, ServerlessSpec
 from sentence_transformers import SentenceTransformer
 
 from tqdm.auto import tqdm
@@ -14,9 +14,11 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # find API key in console at app.pinecone.io
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 # find ENV (cloud region) next to API key in console
-PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT")
+# PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT")
 
-pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_ENVIRONMENT)
+pc = Pinecone(api_key=PINECONE_API_KEY)
+
+# pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_ENVIRONMENT)
 
 
 class WikiDataIngestion:
@@ -96,15 +98,19 @@ if __name__ == "__main__":
     index_name = "pincecone-llm-example"
 
     # Create index if it doesn't exist
-    if index_name not in pinecone.list_indexes():
-        pinecone.create_index(
+    if index_name not in pc.list_indexes().names():
+        pc.create_index(
             name=index_name,
             metric="cosine",
             dimension=1536,  # 1536 dim of text-embedding-ada-002
+            spec=ServerlessSpec(
+                cloud="aws",
+                region="us-east-1"
+            ),
         )
 
     # Connect to index and describe stats
-    index = pinecone.Index(index_name)
+    index = pc.Index(index_name)
     print(index.describe_index_stats())
 
     # Use a generic embedder if an openai api key is not provided
@@ -125,7 +131,7 @@ if __name__ == "__main__":
     # Make a query
     query = "Did Johannes Gutenberg invent the printing press?"
     embeddings = wiki_data_ingestion.embedder.embed_documents(query)
-    results = index.query(embeddings, top_k=3, include_metadata=True)
+    results = index.query(vector=embeddings, top_k=3, include_metadata=True)
     print(results)
     # {'matches': [{'id': '18e2ab0a-f627-436a-b1ab-ed89b5b29c3b',
     #     'metadata': {'chunk': 0.0,

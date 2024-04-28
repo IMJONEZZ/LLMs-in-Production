@@ -1,3 +1,6 @@
+# First start server
+# python chapters/chapter_6/listing_6.2.flow_control.py
+
 import requests
 import time
 

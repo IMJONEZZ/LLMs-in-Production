@@ -11,5 +11,3 @@ feature_vectors = store.get_online_features(
     entity_rows=[{"question_id": _id} for _id in ids.question_id.to_list()],
 ).to_df()
 print(feature_vectors.head())
-
-# see feast_example.ipynb for results

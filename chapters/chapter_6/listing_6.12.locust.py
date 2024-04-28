@@ -1,3 +1,9 @@
+# First start a streaming server
+# python chapters/chapter_6/listing_6.3.streaming.py
+
+# Run the locust test
+# locust -f chapters/chapter_6/listing_6.12.locust.py
+
 import time
 from locust import HttpUser, task, events
 

@@ -3,6 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+import uvicorn
 
 api_keys = ["1234567abcdefg"]  # This would be encrypted in a database
 API_KEY_NAME = "access_token"
@@ -27,3 +28,7 @@ async def get_api_key(api_key: str = Depends(oauth2_scheme)):
 @limiter.limit("5/minute")
 async def hello(request: Request):
     return {"message": "Hello World"}
+
+# For Testing
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)

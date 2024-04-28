@@ -1,3 +1,6 @@
+# First start server
+# python chapters/chapter_6/listing_6.3.streaming.py
+
 import requests
 
 url = "http://localhost:8000/generate"

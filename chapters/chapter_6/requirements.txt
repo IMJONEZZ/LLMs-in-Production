@@ -8,6 +8,7 @@ pinecone-client==3.2.2
 sentence-transformers==2.6.1
 slowapi==0.1.9
 tensorrt==8.6.1.post1
+tiktoken==0.6.0
 torch==2.2.2
 tqdm==4.66.2
 transformers==4.39.3
