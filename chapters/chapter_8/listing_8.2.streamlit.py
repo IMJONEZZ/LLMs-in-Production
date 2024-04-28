@@ -1,3 +1,6 @@
+# Start service with:
+# streamlit run chapters/chapter_8/listing_8.2.streamlit.py
+
 import streamlit as st
 import requests
 import json
@@ -45,6 +48,7 @@ if user_input := st.chat_input("Your question here"):
         prompt += " ".join(history)
         prompt += " assistant: "
         data = json.dumps({"prompt": prompt})
+        print(data)
 
         # Send request
         with requests.post(url, data=data, stream=True) as r:

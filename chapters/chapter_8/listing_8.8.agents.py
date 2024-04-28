@@ -14,22 +14,22 @@ llm = LlamaCpp(
     verbose=False,
 )
 
-# An agent that will generate Python code and execute it
-agent = create_python_agent(
-    llm=llm,
-    tool=PythonREPLTool(),
-    verbose=True,
-    agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-    handle_parsing_errors=True,
-)
+# # An agent that will generate Python code and execute it
+# agent = create_python_agent(
+#     llm=llm,
+#     tool=PythonREPLTool(),
+#     verbose=True,
+#     agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+#     handle_parsing_errors=True,
+# )
 
-agent.run(
-    """Using Python_REPL please write a neural network in Pytorch.
-          Use Python_REPL as the Action and your code as the Action Input.
-          Use synthetic data from a normal distribution.
-          Train for 1000 epochs and print every 100 epochs.
-          Return a prediction for x = 5."""
-)
+# agent.run(
+#     """Using Python_REPL please write a neural network in Pytorch.
+#           Use Python_REPL as the Action and your code as the Action Input.
+#           Use synthetic data from a normal distribution.
+#           Train for 1000 epochs and print every 100 epochs.
+#           Return a prediction for x = 5."""
+# )
 # > Entering new AgentExecutor chain…
 # This is a task about creating and training a neural network. I should
 # start by importing Pytorch and defining the synthetic data. Then I will

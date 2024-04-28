@@ -1,10 +1,10 @@
 import os
-import pinecone
 from langchain.chains import RetrievalQA
 from langchain.chains import RetrievalQAWithSourcesChain
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.vectorstores import Pinecone
+from langchain.vectorstores import Pinecone as lc_Pinecone
+from pinecone import Pinecone
 
 # get openai api key from platform.openai.com
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -12,14 +12,17 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 
 
+pc = Pinecone(api_key=PINECONE_API_KEY)
+
+
 # Set up vectorstore
 index_name = "pincecone-llm-example"
-index = pinecone.Index(index_name)
+index = pc.Index(index_name)
 embedder = OpenAIEmbeddings(
     model="text-embedding-ada-002", openai_api_key=OPENAI_API_KEY
 )
 text_field = "text"
-vectorstore = Pinecone(index, embedder.embed_query, text_field)
+vectorstore = lc_Pinecone(index, embedder.embed_query, text_field)
 
 # Make a query
 query = "Who was Johannes Gutenberg?"

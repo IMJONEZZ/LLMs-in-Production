@@ -65,6 +65,7 @@ async def stream_results() -> AsyncGenerator[bytes, None]:
     for response in streamer:
         await asyncio.sleep(0.05)  # slow things down to see streaming
         # It's typical to return streamed responses byte encoded
+        print(response)
         yield (response + "\n").encode("utf-8")
 
 
