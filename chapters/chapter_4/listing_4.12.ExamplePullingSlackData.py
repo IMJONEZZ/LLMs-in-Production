@@ -4,6 +4,9 @@ import pandas
 token_slack = "Your Token Here"
 client = slack_sdk.WebClient(token=token_slack)
 
+auth = client.auth_test()
+self_user = auth['user_id']
+
 dm_channels_response = client.conversations_list(types="im")
 
 all_messages = {}
@@ -26,11 +29,6 @@ for channel_id, messages in all_messages.items():
 
 slack_dataset = pandas.DataFrame(txts)
 slack_dataset.columns = ["timestamp", "user", "text"]
-self_user = (
-    slack_dataset["user"].value_counts().idxmax()
-)  # Determine your internal user_id
 df = slack_dataset[slack_dataset.user == self_user]
 
-messages = df["text"].values.tolist()
-
-messages.to_parquet("slack_dataset.gzip")
+df[["text"]].to_parquet("slack_dataset.gzip", compression="gzip")

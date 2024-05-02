@@ -1,6 +1,7 @@
 guidance==0.1.13
 langchain==0.1.16
 langchain-experimental==0.0.57
+numexpr==2.10.0
 python-dotenv==1.0.1
 torch==2.2.2
 transformers==4.39.3

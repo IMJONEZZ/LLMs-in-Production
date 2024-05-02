@@ -10,7 +10,7 @@ import tarfile
 
 from utils import crop
 
-# Or use your own model
+  # Or use your own model
 client = OpenAI(api_key="INSERTYOURKEYHERE")
 choices = ["A", "B", "C", "D"]
 
@@ -90,7 +90,7 @@ def eval(args, subject, engine, dev_df, test_df):
         while True:
             try:
                 c = client.completions.create(
-                    engine=engine,
+                    model=engine,
                     prompt=prompt,
                     max_tokens=1,
                     logprobs=100,

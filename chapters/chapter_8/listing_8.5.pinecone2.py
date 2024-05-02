@@ -48,4 +48,7 @@ qa.run(query)
 qa_with_sources = RetrievalQAWithSourcesChain.from_chain_type(
     llm=llm, chain_type="stuff", retriever=vectorstore.as_retriever()
 )
-qa_with_sources(query)
+result = qa_with_sources(query)
+print(result)
+
+# {'question': 'Who was Johannes Gutenberg?', 'answer': ' The image shows a list of births and deaths for the month of April in the year 1771. The births include Richard Trevithick, Karl Philipp Fürst zu Schwarzenberg, Jean Rapp, Prince Ernest Augustus of Great Britain, Sir Walter Scott, Archduke Charles of Austria, Emperor Kokaku of Japan, and Frederick William, Duke of Brunswick. The deaths include Jean-Andoche Junot and Marie François Xavier Bichat. ', 'sources': ''}
