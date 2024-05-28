@@ -11,7 +11,7 @@ try:
     tokenizer.tokenize("This is a test")
     stop_words = nltk.corpus.stopwords.words("english")
     nlp = spacy.load("en_core_web_lg", disable=["parser", "tagger", "ner"])
-except Exception as e:
+except Exception:
     nltk.download("stopwords")
     nltk.download("punkt")
     spacy.cli.download("en_core_web_lg")
