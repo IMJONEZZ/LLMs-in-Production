@@ -17,12 +17,15 @@ quantization_config = BitsAndBytesConfig(
 
 
 model = AutoModelForCausalLM.from_pretrained(
-    model_name, device_map="auto", quantization_config=quantization_config,
+    model_name, 
+    device_map="auto", 
+    quantization_config=quantization_config,
+    attn_implementation="sdpa",
 )
 tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True,)
 
 gms8k = GSM8K()
-gsm8k_trainset, gsm8k_devset = gms8k.train[:30], gms8k.dev[:200]
+gsm8k_trainset, gsm8k_devset = gms8k.train[:30], gms8k.dev[:100]
 
 
 def openai_to_hf(**kwargs):
@@ -124,6 +127,7 @@ class HFModel(LM):
 
 
 # Set up the LM
+print("Model set up!")
 llama = HFModel(model, tokenizer)
 
 # Set up DSPY to use that LM
@@ -169,18 +173,20 @@ evaluate = Evaluate(
 )
 
 # Evaluate how the LLM does with no changes
+print("Evaluating Zero Shot")
 evaluate(Zeroshot())  # 29/200 14.5%
 
 # Set up the optimizer
-config = dict(max_bootstrapped_demos=5)
+config = dict(max_bootstrapped_demos=2)
 
 # Optimize the prompts
+print("Creating Bootstrapped Few Shot Prompt")
 teleprompter = BootstrapFewShot(metric=gsm8k_metric, **config)
 optimized_cot = teleprompter.compile(
     CoT(), trainset=gsm8k_trainset, valset=gsm8k_devset
 )
-
+optimized_cot.save("optimized_llama3_math_cot.json")
 
 # Evaluate our `optimized_cot` program.
+print("Evaluating Optimized CoT Prompt")
 evaluate(optimized_cot)  # 149/200 74.5%
-optimized_cot.save("optimized_llama3_math_cot.json")
