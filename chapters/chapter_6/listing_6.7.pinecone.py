@@ -103,10 +103,7 @@ if __name__ == "__main__":
             name=index_name,
             metric="cosine",
             dimension=1536,  # 1536 dim of text-embedding-ada-002
-            spec=ServerlessSpec(
-                cloud="aws",
-                region="us-east-1"
-            ),
+            spec=ServerlessSpec(cloud="aws", region="us-east-1"),
         )
 
     # Connect to index and describe stats

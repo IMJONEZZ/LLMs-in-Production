@@ -8,12 +8,12 @@ from datasets import load_dataset
 import tiktoken
 
 os.environ["OPENAI_API_KEY"] = "Your API Key"
-os.environ["OPENAI_API_BASE"] = (
-    "http://0.0.0.0:1234/v1"  # Replace with your server's address and port
-)
-os.environ["OPENAI_API_HOST"] = (
-    "http://0.0.0.0:1234"  # Replace with your host IP
-)
+os.environ[
+    "OPENAI_API_BASE"
+] = "http://0.0.0.0:1234/v1"  # Replace with your server's address and port
+os.environ[
+    "OPENAI_API_HOST"
+] = "http://0.0.0.0:1234"  # Replace with your host IP
 
 llm = ChatOpenAI(
     model_name="gpt-3.5-turbo",  # Can be anything

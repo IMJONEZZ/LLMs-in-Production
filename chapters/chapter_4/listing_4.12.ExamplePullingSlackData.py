@@ -5,7 +5,7 @@ token_slack = "Your Token Here"
 client = slack_sdk.WebClient(token=token_slack)
 
 auth = client.auth_test()
-self_user = auth['user_id']
+self_user = auth["user_id"]
 
 dm_channels_response = client.conversations_list(types="im")
 

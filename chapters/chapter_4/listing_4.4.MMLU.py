@@ -10,7 +10,7 @@ import tarfile
 
 from utils import crop
 
-  # Or use your own model
+# Or use your own model
 client = OpenAI(api_key="INSERTYOURKEYHERE")
 choices = ["A", "B", "C", "D"]
 
