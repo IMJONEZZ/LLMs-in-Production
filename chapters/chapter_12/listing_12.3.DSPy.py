@@ -17,12 +17,15 @@ quantization_config = BitsAndBytesConfig(
 
 
 model = AutoModelForCausalLM.from_pretrained(
-    model_name, 
-    device_map="auto", 
+    model_name,
+    device_map="auto",
     quantization_config=quantization_config,
     attn_implementation="sdpa",
 )
-tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True,)
+tokenizer = AutoTokenizer.from_pretrained(
+    model_name,
+    use_fast=True,
+)
 
 gms8k = GSM8K()
 gsm8k_trainset, gsm8k_devset = gms8k.train[:30], gms8k.dev[:100]
@@ -145,16 +148,7 @@ class QASignature(dspy.Signature):
     answer = dspy.OutputField(desc="An answer that is a number")
 
 
-class CoT(dspy.Module):
-    def __init__(self):
-        super().__init__()
-        self.prog = dspy.ChainOfThought(QASignature, max_tokens=1000)
-
-    def forward(self, question):
-        return self.prog(question=question)
-
-
-class Zeroshot(dspy.Module):
+class ZeroShot(dspy.Module):
     def __init__(self):
         super().__init__()
         self.prog = dspy.Predict(QASignature, max_tokens=1000)
@@ -174,10 +168,20 @@ evaluate = Evaluate(
 
 # Evaluate how the LLM does with no changes
 print("Evaluating Zero Shot")
-evaluate(Zeroshot())  # 29/200 14.5%
+evaluate(ZeroShot())  # 29/200 14.5%
 
 # Set up the optimizer
 config = dict(max_bootstrapped_demos=2)
+
+
+class CoT(dspy.Module):
+    def __init__(self):
+        super().__init__()
+        self.prog = dspy.ChainOfThought(QASignature, max_tokens=1000)
+
+    def forward(self, question):
+        return self.prog(question=question)
+
 
 # Optimize the prompts
 print("Creating Bootstrapped Few Shot Prompt")
