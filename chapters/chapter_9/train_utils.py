@@ -1371,7 +1371,7 @@ class FSDP_QLORA:
         group: str = None,  # For wandb logging
         entity: str = None,  # For wandb logging
     ):
-        world_size = (
+        self.world_size = (
             world_size if world_size != -1 else torch.cuda.device_count()
         )
         print(f"World size: {world_size}")
@@ -1405,7 +1405,7 @@ class FSDP_QLORA:
                 "dummmmmmmyyyyyy, you don't have HQQ configured"
             )
 
-        args = {
+        self.args = {
             "train_type": train_type,
             "batch_size": batch_size,
             "context_length": context_length,
@@ -1445,10 +1445,10 @@ class FSDP_QLORA:
             "entity": entity,
         }
 
-        def train_qlora(self):
-            mp.spawn(
-                fsdp_main,
-                args=(world_size, args),
-                nprocs=torch.cuda.device_count(),
-                join=True,
-            )
+    def train_qlora(self):
+        mp.spawn(
+            fsdp_main,
+            args=(self.world_size, self.args),
+            nprocs=torch.cuda.device_count(),
+            join=True,
+        )
