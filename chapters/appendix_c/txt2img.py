@@ -12,66 +12,43 @@ import numpy as np
 
 from tqdm.auto import tqdm
 
-# Easiest
-access_token = "Your HF Access Token"
-pipe = StableDiffusionPipeline.from_pretrained(
-    "runwayml/stable-diffusion-v1-5", use_auth_token=access_token
-).to(
-    "cuda"
-)  # use revision='fp16' and torch_dtype=torch.float16 for low memory
-
-prompt = "a photo of a horse riding an astronaut on Mars"
-image = pipe(prompt).images[0]
-image.save("./chapters/chapter_4/images/horse_rides_astronaut.png")
-
-
-# Medium
-def dummy(images, **kwargs):
-    return images, False
-
 
 def image_grid(imgs, rows, cols):
     assert len(imgs) == rows * cols
 
     w, h = imgs[0].size
     grid = Image.new("RGB", size=(cols * w, rows * h))
-    grid_w, grid_h = grid.size
-
     for i, img in enumerate(imgs):
         grid.paste(img, box=(i % cols * w, i // cols * h))
     return grid
 
 
-pipe.safety_checker = dummy
-n_images = 3
+# Simple
+pipe = StableDiffusionPipeline.from_pretrained(
+    "runwayml/stable-diffusion-v1-5",
+).to("cuda")
+
+n_images = 4
 prompts = [
-    "masterpiece, best quality, a photo of a horse riding an astronaut, trending on artstation, photorealistic, qhd, rtx on, 8k"
+    "masterpiece, best quality, a photo of a horse riding an astronaut, "
+    "trending on artstation, photorealistic, qhd, rtx on, 8k"
 ] * n_images
-with autocast("cuda"):
-    images = pipe(prompts, num_inference_steps=28).images
-image_grid(images, rows=1, cols=3)
-i = 1
-for image in images:
-    image.save(f"./chapters/chapter_4/images/{prompts[0][27:40] + i}.png")
+images = pipe(prompts, num_inference_steps=28).images
+
+image_grid(images, rows=2, cols=2)
 
 
-# Custom
-# vae = AutoencoderKL.from_pretrained("runwayml/stable-diffusion-v1-5", subfolder='vae', use_auth_token=access_token)
-# vae.save_pretrained('./models/vae')
-vae = AutoencoderKL.from_pretrained("./models/vae/").to("cuda")
-
-# tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
-# tokenizer.save_pretrained('./tokenizers/')
-tokenizer = CLIPTokenizer.from_pretrained("./tokenizers/")
-# text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-large-patch14").to("cuda")
-# text_encoder.save_pretrained('./models/text_encoder')
-text_encoder = CLIPTextModel.from_pretrained("./models/text_encoder/").to(
-    "cuda"
-)
-
-# model = UNet2DConditionModel.from_pretrained("runwayml/stable-diffusion-v1-5", subfolder='unet', use_auth_token=access_token).to("cuda")
-# model.save_pretrained('./models/sd_v1-5')
-model = UNet2DConditionModel.from_pretrained("./models/sd_v1-5/").to("cuda")
+# Detailed
+tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
+text_encoder = CLIPTextModel.from_pretrained(
+    "openai/clip-vit-large-patch14"
+).to("cuda")
+vae = AutoencoderKL.from_pretrained(
+    "runwayml/stable-diffusion-v1-5", subfolder="vae"
+).to("cuda")
+model = UNet2DConditionModel.from_pretrained(
+    "runwayml/stable-diffusion-v1-5", subfolder="unet"
+).to("cuda")
 
 scheduler = LMSDiscreteScheduler(
     beta_start=0.00085,
@@ -108,11 +85,6 @@ def get_text_embeds(prompt):
     # Cat for final embeddings
     text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
     return text_embeddings
-
-
-test_embeds = get_text_embeds(["an amazingly cool anime character"])
-print(test_embeds)
-print(test_embeds.shape)
 
 
 def produce_latents(
@@ -163,7 +135,7 @@ def produce_latents(
             )
 
             # compute the previous noisy sample x_t -> x_t-1
-            latents = scheduler.step(noise_pred, i, latents)["prev_sample"]
+            latents = scheduler.step(noise_pred, t, latents)["prev_sample"]
             latent_hist.append(latents)
 
     if not return_all_latents:
@@ -171,11 +143,6 @@ def produce_latents(
 
     all_latents = torch.cat(latent_hist, dim=0)
     return all_latents
-
-
-test_latents = produce_latents(test_embeds)
-print(test_latents)
-print(test_latents.shape)
 
 
 def decode_img_latents(latents):
@@ -190,9 +157,6 @@ def decode_img_latents(latents):
     imgs = imgs.numpy().astype(np.uint8)
     pil_images = [Image.fromarray(image) for image in imgs]
     return pil_images
-
-
-imgs = decode_img_latents(test_latents)
 
 
 def prompt_to_img(
@@ -226,11 +190,7 @@ def prompt_to_img(
 
 
 imgs = prompt_to_img(
-    ["Super cool fantasty knight, intricate armor, 8k"] * 4,
-    512,
-    512,
-    28,
-    11,
+    ["Super cool fantasty knight, intricate armor, 8k"] * 4
 )
 
 image_grid(imgs, rows=2, cols=2)
