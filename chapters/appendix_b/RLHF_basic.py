@@ -52,13 +52,13 @@ for query in tqdm(ppo_trainer.dataloader.dataset):
     query_text = query["query"]
     query_tensor = tokenizer.encode(query_text, return_tensors="pt")
 
-    #### Get response from SFTModel
+    # Get response from model
     response_tensor = ppo_trainer.generate(
         list(query_tensor), return_prompt=False, **generation_kwargs
     )
     response = tokenizer.decode(response_tensor[0])
 
-    #### Compute reward score
+    # Get reward score from user
     human_feedback = int(
         input(
             f"Query: {query_text}\n"
@@ -68,11 +68,11 @@ for query in tqdm(ppo_trainer.dataloader.dataset):
     )
     reward = torch.tensor(float(human_feedback))
 
-    #### Run PPO step
+    # Run PPO step
     stats = ppo_trainer.step(
         [query_tensor[0]], [response_tensor[0]], [reward]
     )
     ppo_trainer.log_stats(stats, query, reward)
 
-#### Save model
+# Save model
 ppo_trainer.save_pretrained("./models/my_ppo_model")
