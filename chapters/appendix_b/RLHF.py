@@ -34,14 +34,16 @@ from trl.core import LengthSampler
 
 def prepare_sample_text(example):
     "Prepare the text from a sample of the Supervised FineTuning dataset."
-    text = f"Question: {example['question']}\n\n" \
+    text = (
+        f"Question: {example['question']}\n\n"
         f"Answer: {example['response_j']}"
+    )
     return text
 
 
 def chars_token_ratio(dataset, tokenizer, nb_examples=400):
     """
-    Estimate the average number of characters per token in the Supervised 
+    Estimate the average number of characters per token in the Supervised
     FineTuning dataset.
     """
     total_characters, total_tokens = 0, 0
@@ -60,7 +62,7 @@ def chars_token_ratio(dataset, tokenizer, nb_examples=400):
 
 def print_trainable_parameters(model):
     """
-    Prints the number of trainable parameters in the Supervised 
+    Prints the number of trainable parameters in the Supervised
     FineTuning model.
     """
     trainable_params = 0
@@ -401,9 +403,7 @@ def build_dataset_preprocess_function(examples, tokenizer):
         query = "Question: " + question + "\n\nAnswer: "
         tokenized_question = tokenizer(query, truncation=True)
         new_examples["query"].append(query)
-        new_examples["input_ids"].append(
-            tokenized_question["input_ids"]
-        )
+        new_examples["input_ids"].append(tokenized_question["input_ids"])
 
     return new_examples
 
@@ -413,8 +413,8 @@ def build_dataset(
     dataset_name="lvwerra/stack-exchange-paired",
 ):
     """
-    Build RL dataset for training. This builds the dataset from 
-    `load_dataset`, one should customize this function to train the model 
+    Build RL dataset for training. This builds the dataset from
+    `load_dataset`, one should customize this function to train the model
     on their own dataset.
     """
 
@@ -429,7 +429,7 @@ def build_dataset(
         batched=True,
         num_proc=num_proc,
         remove_columns=original_columns,
-        fn_kwargs={'tokenizer': tokenizer},
+        fn_kwargs={"tokenizer": tokenizer},
     )
     ds = ds.filter(lambda x: len(x["input_ids"]) < 512, batched=False)
 
@@ -463,7 +463,7 @@ def run_RL():
     tokenizer = AutoTokenizer.from_pretrained(
         "meta-llama/Llama-2-7b-chat-hf"
     )
-    # GPT-2 tokenizer has a pad token, but it is not eos_token by default. 
+    # GPT-2 tokenizer has a pad token, but it is not eos_token by default.
     # We need to set it to eos_token. only for this model.
 
     if getattr(tokenizer, "pad_token", None) is None:
@@ -500,7 +500,7 @@ def run_RL():
         optimizer=optimizer,
     )
 
-    # We then build the sentiment analysis pipeline, passing the model name 
+    # We then build the sentiment analysis pipeline, passing the model name
     # and the sentiment analysis pipeline arguments. Let's also make sure to
     # set the device to the same device as the PPOTrainer.
     if ppo_trainer.accelerator.num_processes == 1:
