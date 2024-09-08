@@ -28,10 +28,24 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 
 # Traditional Generation
-system = "This is a chat between a user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions based on the context. The assistant should also indicate when the answer cannot be found in the context."
-question = "Please give a full and complete answer for the question. Can you help me find a place to eat?"
-response = "Sure, there are many locations near you that are wonderful to eat at, have you tried La Dolce Vite?"
-question_2 = "Please give a full and complete answer for the question. I'm looking for somewhere near me that serves noodles."
+system = (
+    "This is a chat between a user and an artificial intelligence "
+    "assistant. The assistant gives helpful, detailed, and polite answers "
+    "to the user's questions based on the context. The assistant should "
+    "also indicate when the answer cannot be found in the context."
+)
+question = (
+    "Please give a full and complete answer for the question. "
+    "Can you help me find a place to eat?"
+)
+response = (
+    "Sure, there are many locations near you that are wonderful "
+    "to eat at, have you tried La Dolce Vite?"
+)
+question_2 = (
+    "Please give a full and complete answer for the question. "
+    "I'm looking for somewhere near me that serves noodles."
+)
 
 
 prompt = f"""System: {system}
@@ -61,7 +75,8 @@ text_outputs = model.generate(
 response = text_outputs[0][inputs.input_ids.shape[-1] :]
 end = perf_counter() - start
 print(
-    f"\n\nFull Response: {tokenizer.batch_decode(text_outputs)}\n\nOnly Answer Response: {tokenizer.decode(response)}"
+    f"\n\nFull Response: {tokenizer.batch_decode(text_outputs)}"
+    f"\n\nOnly Answer Response: {tokenizer.decode(response)}"
 )
 print(f"\nTime to execute: {end}\n")
 

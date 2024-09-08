@@ -60,7 +60,7 @@ class HFModel(LM):
         """wrapper for Hugging Face models
 
         Args:
-            model (AutoModelForCausalLM): HF model identifier to load and use
+            model(AutoModelForCausalLM): HF model identifier to load and use
             tokenizer: AutoTokenizer
         """
         super().__init__(model)
