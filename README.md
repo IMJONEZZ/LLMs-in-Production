@@ -56,3 +56,8 @@ All scripts are designed to be ran from project root, e.g. `python chapters/chap
 ## Manning Publications
 
 Check out other Manning titles and learning resources [here](https://tinyurl.com/5x2h9k4y)!
+
+# Citation
+If you find this book or code useful for your research, please consider citing it.
+Chicago-style citation:
+> Christopher Brousseau and Matthew Sharp. _LLMs in Production: From Language Models to Successful Products_. Manning, 2025. ISBN: 978-81633437203.
