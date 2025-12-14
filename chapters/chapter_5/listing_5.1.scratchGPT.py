@@ -246,7 +246,11 @@ if __name__ == "__main__":
 
     # Load the saved model
     loaded_model = GPT().to(device)
+    # loaded_model.load_state_dict(torch.load(model_path)) This will give error
+    loaded_model = GPT()
     loaded_model.load_state_dict(torch.load(model_path))
+    loaded_model.to(device)
+    
 
     # Test the loaded moel
     context = torch.zeros((1, 1), dtype=torch.long, device=device)
